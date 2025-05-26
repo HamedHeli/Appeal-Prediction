@@ -1,4 +1,4 @@
-# Predicting Appeal: M.Sc. Thesis Project
+# Predicting Property Assessment Appeals: M.Sc. Thesis Project
 
 This repository contains the code, data, and documentation for my M.Sc. thesis titled "**Predicting Number of Property Assessment Appeal Received by Property Assessment Organizations using Neural Network**" at **University of British Columbia**. The project focuses on predicting appeal using machine learning techniques.
 
