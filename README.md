@@ -11,8 +11,7 @@ capture the complex, non-linear relationships driving appeal volumes. The model 
 
 ## 🎯 Project Goals
 
-* **To develop, evaluate, and interpret a Neural Network (NN) model capable of predicting the likelihood of property assessment appeals for assessment organizations.**
----
+*To develop, evaluate, and interpret a Neural Network (NN) model capable of predicting the likelihood of property assessment appeals for assessment organizations*
 
 ## Dataset
 
