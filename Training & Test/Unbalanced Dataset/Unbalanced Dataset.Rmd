@@ -40,10 +40,10 @@ fontsize <- 8
 basesize <- 8
 ```
 
+___
 
 ### 2. Exploratory Data Analysis 🔍
-
-##### 2.1. Initial Data Overview 📊
+#### 2.1. Initial Data Overview 📊
 
 **Format**
 
@@ -65,8 +65,10 @@ glimpse(thyroid_df)
 ```
 
 
+___
+
 #### 2.2. Visualization
-####### 2.2.1. Distribution of Classes
+###### 2.2.1. Distribution of Classes
 
 ```{r 2.2 Class Distribution, echo = FALSE, fig.width = 3, fig.height = 3, fig.align = 'center'}
 
@@ -87,7 +89,9 @@ ggplot(thyroid_df, aes(x = Class, fill = Class)) +
 
 ```
 
-####### 2.2.2. Distribution of Predictors
+___
+
+###### 2.2.2. Distribution of Predictors
 
 ```{r 2.2 Predictors Histograms, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
@@ -115,7 +119,9 @@ print(combined_plot)
 
 ```
 
-####### 2.2.3. Distribution of Predictors by Class
+___
+
+###### 2.2.3. Distribution of Predictors by Class
 
 ```{r 2.2 Predictors Histograms by Class, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
@@ -146,6 +152,8 @@ combined_plot <- wrap_plots(plot_list, ncol = 2) +
 
 print(combined_plot)
 ```
+
+___
 
 ### 3. Methodology 🛠️
 
@@ -178,8 +186,11 @@ table(thyroid_df_train$Class)
 confusionMatrix(predictions_baseline, thyroid_df_test$Class)
 
 ```
+
+___
+
 ##### 3.2. Resampling Techniques
-####### 3.2.1. Upsampling Methods - Random Over-Sampling (ROS)
+###### 3.2.1. Upsampling Methods - Random Over-Sampling (ROS)
 
 ```{r 3.1 ROS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
@@ -201,7 +212,9 @@ confusionMatrix(predictions_upsample_ros, thyroid_df_test$Class)
 
 ```
 
-####### 3.2.2. Upsampling Methods -  SMOTE (Synthetic Minority Over-sampling Technique)
+___
+
+###### 3.2.2. Upsampling Methods -  SMOTE (Synthetic Minority Over-sampling Technique)
 
 ```{r 3.1 SMOTE, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
