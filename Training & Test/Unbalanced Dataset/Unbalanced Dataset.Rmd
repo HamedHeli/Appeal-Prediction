@@ -3,6 +3,12 @@ title: "Comparing Methods for Handling Imbalanced Datasets"
 author: "Hamed Helisaz"
 date: "`r Sys.Date()`"
 output:
+  html_document:
+    fig_caption: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
 ---
 
 ```{r setup, include=FALSE}
