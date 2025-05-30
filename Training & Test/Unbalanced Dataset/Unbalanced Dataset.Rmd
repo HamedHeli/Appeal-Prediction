@@ -194,10 +194,10 @@ ___
 
 ```{r 3.1 ROS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
-thyroid_df_train_upsampled_ros <- upSample(x = subset(thyroid_df_train, 
-                                                select = -Class),
-                                     y = thyroid_df_train$Class,
-                                     yname = "Class") 
+thyroid_df_train_upsampled_ros <- upSample(
+  x = subset(thyroid_df_train, select = -Class),
+  y = thyroid_df_train$Class,
+  yname = "Class") 
 
 table(thyroid_df_train_upsampled_ros$Class)
 
@@ -242,5 +242,84 @@ predictions_upsample_smote_class <- predict(model_upsample_smote, newdata = thyr
 
 confusionMatrix(predictions_upsample_smote_class, 
                 thyroid_df_test$Class)
+
+```
+
+###### 3.2.2. Downsampling Methods -  Random Under-Sampling (RUS)
+
+```{r 3.2 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+
+
+thyroid_df_train_downsampled_ros <- downSample(
+  x = subset(thyroid_df_train, select = -Class),
+  y = thyroid_df_train$Class,
+  yname = "Class") 
+
+table(thyroid_df_train_downsampled_ros$Class)
+
+model_downsample_ros <- train(Class ~ .,
+                            data = thyroid_df_train_downsampled_ros,
+                            method = "glm", 
+                            trControl = train_control,
+                            metric = "ROC")
+
+predictions_downsample_ros <- predict(model_downsample_ros, newdata = thyroid_df_test)
+confusionMatrix(predictions_downsample_ros, thyroid_df_test$Class)
+
+```
+##### 3.3. Cost-Sensitive Techniques
+
+###### 3.3.1. Regular Random Forest
+
+```{r 3.3 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+
+
+#  Random Forest
+rf <- train(Class ~ .,
+                     data = thyroid_df_train,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     num.trees = 100,
+                     importance = 'permutation'
+                    )
+
+predictions_rf <- predict(rf, 
+                          newdata = thyroid_df_test)
+confusionMatrix(predictions_rf, thyroid_df_test$Class)
+
+
+```
+
+###### 3.3.2. Weighted Random Forest
+
+```{r 3.3 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+
+
+# Calculate case weights
+n_negative_train <- sum(thyroid_df_train$Class == "negative")
+n_positive_train <- sum(thyroid_df_train$Class == "positive")
+
+# positive is minority
+model_weights <- c(
+  negative = (n_negative_train + n_positive_train) / (2 * n_negative_train), 
+  positive = (n_negative_train + n_positive_train) / (2 * n_positive_train))
+
+
+# Weighted Random Forest
+weighted_rf <- train(Class ~ .,
+                     data = thyroid_df_train,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights,
+                     num.trees = 100,
+                     importance = 'permutation'
+                    )
+
+predictions_weighted_rf <- predict(weighted_rf, 
+                                   newdata = thyroid_df_test)
+confusionMatrix(predictions_weighted_rf, thyroid_df_test$Class)
+
 
 ```
