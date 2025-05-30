@@ -7,19 +7,23 @@ output:
     fig_caption: yes
     theme: cerulean
     toc: yes
-    toc_depth: 3
+    toc_depth: 6
     toc_float: yes
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.align = 'center')
 library(tidyverse)
-library(caret)
 library(imbalance)
 library(GGally)
 library(patchwork)
 library(recipes)
 library(themis)
+library(smotefamily)
+library(UBL)
+library(unbalanced)
+library(devtools)
+library(caret)
 set.seed(456)
 ```
 
@@ -245,7 +249,53 @@ confusionMatrix(predictions_upsample_smote_class,
 
 ```
 
-###### 3.2.2. Downsampling Methods -  Random Under-Sampling (RUS)
+___
+
+###### 3.2.3. Upsampling Methods -  SMOTE-ENN
+
+```{r 3.1 SMOTE-ENN, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+
+smote_recipe <- recipe(Class ~ ., data = thyroid_df_train) %>%
+  step_smote(Class, over_ratio = 1) 
+
+
+thyroid_df_train_upsampled_smote_enn <- juice(prep(smote_recipe))
+
+
+thyroid_df_train_upsampled_smote_enn$Class <- ifelse(
+  thyroid_df_train_upsampled_smote_enn$Class == "negative", 0, 1)
+
+thyroid_df_train_upsampled_smote_enn <- ubENN(X = thyroid_df_train_upsampled_smote_enn
+                    [, setdiff(names(thyroid_df_train_upsampled_smote_enn), "Class")], 
+                    Y =  thyroid_df_train_upsampled_smote_enn$Class)
+
+thyroid_df_train_upsampled_smote_enn_final <- 
+  cbind(thyroid_df_train_upsampled_smote_enn$X,
+        data.frame(Class = factor(
+          ifelse(
+          thyroid_df_train_upsampled_smote_enn$Y == 0, 'negative','positive'), 
+          level = c('negative','positive'))))
+
+model_upsample_smote_enn <- train(Class ~ .,
+                              data = thyroid_df_train_upsampled_smote_enn_final,
+                              method = "glm",
+                              family = "binomial",
+                              trControl = train_control,
+                              metric = "ROC")
+
+
+predictions_upsample_smote_enn_class <- predict(model_upsample_smote_enn, 
+                                            newdata = thyroid_df_test, 
+                                            type = "raw")
+
+confusionMatrix(predictions_upsample_smote_enn_class, 
+                thyroid_df_test$Class)
+
+```
+
+___
+
+###### 3.2.4. Downsampling Methods -  Random Under-Sampling (RUS)
 
 ```{r 3.2 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
@@ -267,11 +317,14 @@ predictions_downsample_ros <- predict(model_downsample_ros, newdata = thyroid_df
 confusionMatrix(predictions_downsample_ros, thyroid_df_test$Class)
 
 ```
+
+___
+
 ##### 3.3. Cost-Sensitive Techniques
 
 ###### 3.3.1. Regular Random Forest
 
-```{r 3.3 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r 3.4 rf, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
 
 #  Random Forest
@@ -290,10 +343,11 @@ confusionMatrix(predictions_rf, thyroid_df_test$Class)
 
 
 ```
+___
 
 ###### 3.3.2. Weighted Random Forest
 
-```{r 3.3 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r 3.5 rf_weighted, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
 
 # Calculate case weights
