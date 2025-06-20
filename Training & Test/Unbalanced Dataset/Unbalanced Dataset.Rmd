@@ -24,6 +24,8 @@ library(UBL)
 library(unbalanced)
 library(devtools)
 library(caret)
+library(formattable)
+library(kableExtra)
 set.seed(456)
 ```
 
@@ -34,12 +36,23 @@ Loading `newthyroid1` data set from `imbalanced` library
 
 ```{r 1.1 Load Data, echo = FALSE}
 
-data(newthyroid1)
-thyroid_df_raw <- newthyroid1
+data_raw <- read.csv("data/data.csv")
 
-thyroid_df <- thyroid_df_raw %>%
+
+factor_cols <- c("gender", "hypertension","heart_disease","ever_married",
+                 "work_type","Residence_type","smoking_status")
+
+
+data <- data_raw %>%
+  mutate(Class = ifelse(stroke == 0, "negative","positive"))%>%
+  select(-stroke)%>%
   mutate(Class = factor(Class, levels = c("negative","positive")))%>%
-  select(-TSH_value, -Triiodothyronine, -Thyroxin)
+  select(-id)%>%
+  mutate(across(all_of(factor_cols),as.factor))%>%
+  ## Addressing NA
+  mutate(smoking_status = ifelse(is.na(smoking_status), "Others",smoking_status))%>%
+  filter(if_all(everything(), ~!is.na(.)))
+
 
 fontsize <- 8
 basesize <- 8
@@ -52,20 +65,15 @@ ___
 
 **Format**
 
-A data frame with 215 instances, 35 of which belong to the positive class, and 6 variables:
+A data frame with `r comma(nrow(data),0)` records and `r length(names(data))` columns; `r comma(nrow(data[data['Class'] == "positive",]),0)` comes with positive (minority) outcomes and `r comma(nrow(data[data['Class'] == "negative",]),0)` comes with negative (majority) outcomes (`r percent(nrow(data[data['Class'] == "positive",])/nrow(data),0)` imbalance). 
 
 **Variables**
 
-* **T3resin**: T3-resin uptake test, percentage. Discrete attribute.
-* **Thyroxin**: Total Serum thyroxin as measured by the isotopic displacement method. Continuous attribute.
-* **Triiodothyronine**: Total serum triiodothyronine as measured by radioimmuno assay. Continuous attribute.
-* **Thyroidstimulating**: Basal thyroid-stimulating hormone (TSH) as measured by radioimmuno assay. Continuous attribute.
-* **TSH\_value**: Maximal absolute difference of TSH value after injection of 200 micrograms of thyrotropin-releasing hormone as compared to the basal value. Continuous attribute.
-* **Class**: Two possible classes: positive as hyperthyroidism, negative as non-hyperthyroidism.
+`r names(data)`
 
 ```{r 2.1 Initial Data Overview, echo = FALSE}
 
-glimpse(thyroid_df)
+glimpse(data)
 
 ```
 
@@ -77,9 +85,9 @@ ___
 
 ```{r 2.2 Class Distribution, echo = FALSE, fig.width = 3, fig.height = 3, fig.align = 'center'}
 
-ggplot(thyroid_df, aes(x = Class, fill = Class)) +
+ggplot(data, aes(x = Class, fill = Class)) +
   geom_bar() +
-  labs(title = "Unbalanced Distribution of Hyperthyroidism Status", x = "Hyperthyroidism Status", y = "Count") +
+  labs(title = "Unbalanced Distribution", x = "Class", y = "Count") +
   theme_minimal(base_size = basesize) +
   scale_fill_manual(values = c("positive" = "skyblue", "negative" = "tomato"))+
   theme(axis.title.x = element_text(size = fontsize),
@@ -98,14 +106,14 @@ ___
 
 ###### 2.2.2. Distribution of Predictors
 
-```{r 2.2 Predictors Histograms, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r 2.2 Predictors Histograms, echo = FALSE, fig.width = 9, fig.height = 6, fig.align = 'center'}
 
-numeric_predictors <- setdiff(names(thyroid_df), "Class")
+numeric_predictors <- setdiff(names(data), c("Class",factor_cols))
 
 plot_list <- list()
 
 for (col_name in numeric_predictors) {
-p <- ggplot(thyroid_df, aes(x = .data[[col_name]])) +
+p <- ggplot(data, aes(x = .data[[col_name]])) +
     geom_histogram(aes(y = after_stat(density)), binwidth = NULL, fill = "lightblue", color = "black", alpha = 0.7) +
     geom_density(color = "darkblue", linewidth = 1) +
     labs(
@@ -126,18 +134,17 @@ print(combined_plot)
 
 ___
 
-###### 2.2.3. Distribution of Predictors by Class
+###### 2.2.3. Distribution of Predictors by Class - Histogram
 
-```{r 2.2 Predictors Histograms by Class, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r 2.2 Predictors Histograms by Class, echo = FALSE, fig.width = 9, fig.height = 6, fig.align = 'center'}
 
-numeric_predictors <- setdiff(names(thyroid_df), "Class")
 
 plot_list <- list()
 class_colors <- c("positive" = "skyblue", "negative" = "tomato")
 
 for (col_name in numeric_predictors) {
-  p <- ggplot(thyroid_df, aes(x = .data[[col_name]], fill = Class, color = Class)) +
-    geom_density(alpha = 0.5, linewidth = 0.8) + 
+  p <- ggplot(data, aes(x = .data[[col_name]], fill = Class, color = Class)) +
+    geom_density(alpha = 0.5, linewidth = 0.8) +
     scale_fill_manual(values = class_colors) +
     scale_color_manual(values = class_colors) +
     labs(
@@ -145,17 +152,65 @@ for (col_name in numeric_predictors) {
       x = col_name,
       y = "Density"
     ) +
-    theme_minimal(base_size = fontsize -1) + 
-    theme(legend.position = "none") 
+    theme_minimal(base_size = fontsize -1) +
+    theme(legend.position = "none")
 
   plot_list[[col_name]] <- p
 }
 
-combined_plot <- wrap_plots(plot_list, ncol = 2) + 
-                 plot_layout(guides = 'collect') & 
+combined_plot <- wrap_plots(plot_list, ncol = 2) +
+                 plot_layout(guides = 'collect') &
                  theme(legend.position = 'right')
 
 print(combined_plot)
+```
+
+
+###### 2.2.3. Distribution of Predictors by Class - Contingency Tables
+
+```{r 2.2 Predictors Boxplot, echo = FALSE, results='asis'}
+
+factor_predictors <- factor_cols  
+
+tables_list <- list()
+
+for (col_name in factor_predictors) {
+  tbl_df <- data %>%
+    group_by(!!sym(col_name), Class) %>%
+    summarise(Count = n(), .groups = "drop") %>%
+    group_by(!!sym(col_name)) %>%
+    mutate(Percent = round(100 * Count / sum(Count), 1),
+           Label = paste0(comma(Count), " (", Percent, "%)")) %>%
+    select(!!sym(col_name), Class, Label) %>%
+    pivot_wider(names_from = Class, values_from = Label) %>%
+    mutate(across(everything(), ~replace_na(.x, "0 (0.0%)")))
+  
+  tables_list[[col_name]] <- kable(tbl_df, format = "html") %>%
+    kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                  full_width = FALSE, position = "left",
+                  font_size = 12)
+}
+
+
+for (i in seq(1, length(tables_list), by = 4)) {
+cat('<div style="display: flex; justify-content: flex-start; gap: 20px;">')
+
+print(tables_list[[i]])
+
+if ((i + 1) <= length(tables_list)) {
+  print(tables_list[[i + 1]])
+}
+
+if ((i + 2) <= length(tables_list)) {
+  print(tables_list[[i + 2]])
+}
+
+if ((i + 3) <= length(tables_list)) {
+  print(tables_list[[i + 3]])
+}
+
+cat('</div><br>\n')
+}
 ```
 
 ___
@@ -167,28 +222,28 @@ ___
 ```{r 3.1 Baseline, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
 train_control <- trainControl(method = "cv",
-                              number = 5, 
+                              number = 5,
                               classProbs = TRUE,
-                              summaryFunction = twoClassSummary, 
+                              summaryFunction = twoClassSummary,
                               savePredictions = "final")
 
 
-train_index <- createDataPartition(thyroid_df$Class, p = 0.7, list = FALSE)
-thyroid_df_train <- thyroid_df[train_index, ]
-thyroid_df_test <- thyroid_df[-train_index, ]
+train_index <- createDataPartition(data$Class, p = 0.7, list = FALSE)
+data_train <- data[train_index, ]
+data_test <- data[-train_index, ]
 
 model_baseline <- train(Class ~ .,
-                        data = thyroid_df_train,
-                        method = "glm", 
+                        data = data_train,
+                        method = "glm",
                         trControl = train_control,
-                        metric = "ROC") 
+                        metric = "ROC")
                         ##  "F1", "Recall", "Sensitivity", "Specificity"
 
 print(model_baseline)
-predictions_baseline <- predict(model_baseline, newdata = thyroid_df_test)
+predictions_baseline <- predict(model_baseline, newdata = data_test)
 
-table(thyroid_df_train$Class)
-confusionMatrix(predictions_baseline, thyroid_df_test$Class)
+table(data_train$Class)
+confusionMatrix(predictions_baseline, data_test$Class)
 
 ```
 
@@ -199,21 +254,21 @@ ___
 
 ```{r 3.1 ROS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
-thyroid_df_train_upsampled_ros <- upSample(
-  x = subset(thyroid_df_train, select = -Class),
-  y = thyroid_df_train$Class,
-  yname = "Class") 
+data_train_upsampled_ros <- upSample(
+  x = subset(data_train, select = -Class),
+  y = data_train$Class,
+  yname = "Class")
 
-table(thyroid_df_train_upsampled_ros$Class)
+table(data_train_upsampled_ros$Class)
 
 model_upsample_ros <- train(Class ~ .,
-                            data = thyroid_df_train_upsampled_ros,
-                            method = "glm", 
+                            data = data_train_upsampled_ros,
+                            method = "glm",
                             trControl = train_control,
                             metric = "ROC")
 
-predictions_upsample_ros <- predict(model_upsample_ros, newdata = thyroid_df_test)
-confusionMatrix(predictions_upsample_ros, thyroid_df_test$Class)
+predictions_upsample_ros <- predict(model_upsample_ros, newdata = data_test)
+confusionMatrix(predictions_upsample_ros, data_test$Class)
 
 ```
 
@@ -223,17 +278,19 @@ ___
 
 ```{r 3.1 SMOTE, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
-smote_recipe <- recipe(Class ~ ., data = thyroid_df_train) %>%
-  step_smote(Class, over_ratio = 1) 
 
+prepped_recipe_smote <- recipe(Class ~ ., data = data_train) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_smote(Class)%>%prep()
 
-thyroid_df_train_upsampled_smote <- juice(prep(smote_recipe))
+data_train_upsampled_smote <- juice(prepped_recipe)
+data_test_upsampled_smote <- bake(prepped_recipe, new_data = data_test)
 
-table(thyroid_df_train_upsampled_smote$Class)
+table(data_train_upsampled_smote$Class)
 
 
 model_upsample_smote <- train(Class ~ .,
-                              data = thyroid_df_train_upsampled_smote,
+                              data = data_train_upsampled_smote,
                               method = "glm",
                               family = "binomial",
                               trControl = train_control,
@@ -241,12 +298,12 @@ model_upsample_smote <- train(Class ~ .,
 
 print(model_upsample_smote)
 
-predictions_upsample_smote_prob <- predict(model_upsample_smote, newdata = thyroid_df_test, type = "prob")
+predictions_upsample_smote_prob <- predict(model_upsample_smote, newdata = data_test_upsampled_smote, type = "prob")
 
-predictions_upsample_smote_class <- predict(model_upsample_smote, newdata = thyroid_df_test, type = "raw")
+predictions_upsample_smote_class <- predict(model_upsample_smote, newdata = data_test_upsampled_smote, type = "raw")
 
-confusionMatrix(predictions_upsample_smote_class, 
-                thyroid_df_test$Class)
+confusionMatrix(predictions_upsample_smote_class,
+                data_test$Class)
 
 ```
 
@@ -256,41 +313,43 @@ ___
 
 ```{r 3.1 SMOTE-ENN, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
-smote_recipe <- recipe(Class ~ ., data = thyroid_df_train) %>%
-  step_smote(Class, over_ratio = 1) 
+prepped_recipe_smote_enn <- recipe(Class ~ ., data = data_train) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_smote(Class, over_ratio = 1)%>%prep()
 
 
-thyroid_df_train_upsampled_smote_enn <- juice(prep(smote_recipe))
+data_train_upsampled_smote_enn <- juice(prepped_recipe_smote_enn)
+data_test_upsampled_smote_end <- bake(prepped_recipe_smote_enn, new_data = data_test)
 
 
-thyroid_df_train_upsampled_smote_enn$Class <- ifelse(
-  thyroid_df_train_upsampled_smote_enn$Class == "negative", 0, 1)
+data_train_upsampled_smote_enn$Class <- ifelse(
+  data_train_upsampled_smote_enn$Class == "negative", 0, 1)
 
-thyroid_df_train_upsampled_smote_enn <- ubENN(X = thyroid_df_train_upsampled_smote_enn
-                    [, setdiff(names(thyroid_df_train_upsampled_smote_enn), "Class")], 
-                    Y =  thyroid_df_train_upsampled_smote_enn$Class)
+data_train_upsampled_smote_enn <- ubENN(X = data_train_upsampled_smote_enn
+                    [, setdiff(names(data_train_upsampled_smote_enn), "Class")],
+                    Y =  data_train_upsampled_smote_enn$Class)
 
-thyroid_df_train_upsampled_smote_enn_final <- 
-  cbind(thyroid_df_train_upsampled_smote_enn$X,
+data_train_upsampled_smote_enn_final <-
+  cbind(data_train_upsampled_smote_enn$X,
         data.frame(Class = factor(
           ifelse(
-          thyroid_df_train_upsampled_smote_enn$Y == 0, 'negative','positive'), 
+          data_train_upsampled_smote_enn$Y == 0, 'negative','positive'),
           level = c('negative','positive'))))
 
 model_upsample_smote_enn <- train(Class ~ .,
-                              data = thyroid_df_train_upsampled_smote_enn_final,
+                              data = data_train_upsampled_smote_enn_final,
                               method = "glm",
                               family = "binomial",
                               trControl = train_control,
                               metric = "ROC")
 
 
-predictions_upsample_smote_enn_class <- predict(model_upsample_smote_enn, 
-                                            newdata = thyroid_df_test, 
+predictions_upsample_smote_enn_class <- predict(model_upsample_smote_enn,
+                                            newdata = data_test,
                                             type = "raw")
 
-confusionMatrix(predictions_upsample_smote_enn_class, 
-                thyroid_df_test$Class)
+confusionMatrix(predictions_upsample_smote_enn_class,
+                data_test$Class)
 
 ```
 
@@ -301,21 +360,21 @@ ___
 ```{r 3.2 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
 
-thyroid_df_train_downsampled_ros <- downSample(
-  x = subset(thyroid_df_train, select = -Class),
-  y = thyroid_df_train$Class,
-  yname = "Class") 
+data_train_downsampled_ros <- downSample(
+  x = subset(data_train, select = -Class),
+  y = data_train$Class,
+  yname = "Class")
 
-table(thyroid_df_train_downsampled_ros$Class)
+table(data_train_downsampled_ros$Class)
 
 model_downsample_ros <- train(Class ~ .,
-                            data = thyroid_df_train_downsampled_ros,
-                            method = "glm", 
+                            data = data_train_downsampled_ros,
+                            method = "glm",
                             trControl = train_control,
                             metric = "ROC")
 
-predictions_downsample_ros <- predict(model_downsample_ros, newdata = thyroid_df_test)
-confusionMatrix(predictions_downsample_ros, thyroid_df_test$Class)
+predictions_downsample_ros <- predict(model_downsample_ros, newdata = data_test)
+confusionMatrix(predictions_downsample_ros, data_test$Class)
 
 ```
 
@@ -330,7 +389,7 @@ ___
 
 #  Random Forest
 rf <- train(Class ~ .,
-                     data = thyroid_df_train,
+                     data = data_train,
                      method = "ranger",
                      trControl = train_control,
                      metric = "ROC",
@@ -338,9 +397,9 @@ rf <- train(Class ~ .,
                      importance = 'permutation'
                     )
 
-predictions_rf <- predict(rf, 
-                          newdata = thyroid_df_test)
-confusionMatrix(predictions_rf, thyroid_df_test$Class)
+predictions_rf <- predict(rf,
+                          newdata = data_test)
+confusionMatrix(predictions_rf, data_test$Class)
 
 
 ```
@@ -352,18 +411,18 @@ ___
 
 
 # Calculate case weights
-n_negative_train <- sum(thyroid_df_train$Class == "negative")
-n_positive_train <- sum(thyroid_df_train$Class == "positive")
+n_negative_train <- sum(data_train$Class == "negative")
+n_positive_train <- sum(data_train$Class == "positive")
 
 # positive is minority
 model_weights <- c(
-  negative = (n_negative_train + n_positive_train) / (2 * n_negative_train), 
+  negative = (n_negative_train + n_positive_train) / (2 * n_negative_train),
   positive = (n_negative_train + n_positive_train) / (2 * n_positive_train))
 
 
 # Weighted Random Forest
 weighted_rf <- train(Class ~ .,
-                     data = thyroid_df_train,
+                     data = data_train,
                      method = "ranger",
                      trControl = train_control,
                      metric = "ROC",
@@ -372,9 +431,9 @@ weighted_rf <- train(Class ~ .,
                      importance = 'permutation'
                     )
 
-predictions_weighted_rf <- predict(weighted_rf, 
-                                   newdata = thyroid_df_test)
-confusionMatrix(predictions_weighted_rf, thyroid_df_test$Class)
+predictions_weighted_rf <- predict(weighted_rf,
+                                   newdata = data_test)
+confusionMatrix(predictions_weighted_rf, data_test$Class)
 
 
 ```
