@@ -38,7 +38,8 @@ data(newthyroid1)
 thyroid_df_raw <- newthyroid1
 
 thyroid_df <- thyroid_df_raw %>%
-  mutate(Class = factor(Class, levels = c("negative","positive")))
+  mutate(Class = factor(Class, levels = c("negative","positive")))%>%
+  select(-TSH_value, -Triiodothyronine, -Thyroxin)
 
 fontsize <- 8
 basesize <- 8
