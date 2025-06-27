@@ -34,7 +34,17 @@ set.seed(456)
 
 ### 1. Data Preparation 💾
 
-Loading `newthyroid1` data set from `imbalanced` library
+This dataset is used for predicting the likelihood of a **cerebral stroke** based on various health and demographic factors. It is an **imbalanced classification problem**, making it suitable for evaluating models using metrics like **Precision**, **Recall**, **F1 Score**, **ROC-AUC**, and **PR-AUC**.
+
+**Key Features Include:**
+- Age, Hypertension, Heart Disease
+- Average Glucose Level, BMI
+- Smoking Status, Gender, Work Type, Residence Type
+- Stroke (target variable)
+
+**Class Imbalance:** The target variable (`stroke`) is highly imbalanced, with a small percentage of positive stroke cases.
+
+**Source:** [Cerebral Stroke Prediction (Imbalanced Dataset) on Kaggle](https://www.kaggle.com/datasets/shashwatwork/cerebral-stroke-predictionimbalaced-dataset)
 
 ```{r 1.1 Load Data, echo = FALSE}
 
@@ -485,6 +495,8 @@ rf <- train(Class ~ .,
 
 predictions_rf <- predict(rf,
                           newdata = data_test)
+
+table(data_train$Class)
 
 cm_rf <- confusionMatrix(predictions_rf, 
                                    data_test$Class, positive = "positive")
