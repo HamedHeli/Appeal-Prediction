@@ -28,6 +28,9 @@ library(formattable)
 library(kableExtra)
 library(pROC)
 library(UBL)
+library(xgboost)
+library(tidymodels)
+library(xgboost)
 set.seed(456)
 ```
 
@@ -65,7 +68,7 @@ data <- data_raw %>%
   mutate(smoking_status = ifelse(is.na(smoking_status), "Others",smoking_status))%>%
   filter(if_all(everything(), ~!is.na(.)))
 
-
+### Find the best threshold based on the valuation criteria
 best_threshold <- function(roc){
   
   roc_cords <- coords(roc,
@@ -76,13 +79,54 @@ best_threshold <- function(roc){
   s <- roc_cords$sensitivity
   roc_cords$f1 <- ifelse(p + s == 0, 0, 2 * p * s / (p + s))
   roc_cords <- roc_cords[!is.na(roc_cords$f1),]
-  high_sens <- roc_cords [roc_cords['sensitivity']>= 0.9, ]
+  high_sens <- roc_cords
+  # high_sens <- roc_cords [roc_cords['sensitivity']>= 0.9, ]
   best_thres <- high_sens[which.max(high_sens$f1), "threshold"]
-
+  
   return(best_thres)
 }
-
-
+### Find the model + testing it to find the valuation criteria
+evaluate_model <- function(model, valid_data, test_data) {
+  
+  # Helper: safe probability prediction
+  predict_probs <- function(model, newdata) {
+    tryCatch({
+      # Try caret-style predict
+      predict(model, newdata = newdata, type = "prob")[, "positive"]
+    }, error = function(e) {
+      message("Falling back to xgboost-style prediction: ", e$message)
+      
+      # Convert to numeric matrix
+      x_mat <- model.matrix(Class ~ . - 1, data = newdata)
+      predict(model, x_mat)
+    })
+  }
+  
+  # Predict on validation set
+  probs_valid <- predict_probs(model, valid_data)
+  
+  # ROC on validation
+  roc_obj_valid <- roc(response = valid_data$Class,
+                       predictor = probs_valid,
+                       levels = c("negative", "positive"))
+  
+  # Find best threshold
+  best_thresh <- best_threshold(roc_obj_valid)
+  
+  # Predict on test set
+  probs_test <- predict_probs(model, test_data)
+  
+  # Convert probabilities to classes
+  pred_classes <- ifelse(probs_test >= best_thresh, "positive", "negative")
+  pred_classes <- factor(pred_classes, levels = c("negative", "positive"))
+  
+  # Confusion matrix
+  cm_rf_smote_enn <- confusionMatrix(pred_classes, test_data$Class, positive = "positive")
+  
+  # Return results
+  return(list(best_thresh = best_thresh, cm = cm_rf_smote_enn))
+}
+### Report the important valuation criteria that we care 
 eval_fnc <- function(cm){
 
 sensitivity <- cm$byClass["Sensitivity"]
@@ -265,7 +309,7 @@ ___
 The following machine learning workflow is considered for all models:
 
 **📦 Data Splitting:**  
-The original dataset is divided into three parts:
+The original dataset is divided into three parts: I used **stratified splits** to ensure the minority class is represented in all subsets. 
 
 - **Training set (≈56%)**: used to train the model.  
 - **Validation set (≈24%)**: used to tune hyperparameters and select the optimal classification threshold.  
@@ -278,7 +322,7 @@ All training datasets are augmented using **oversampling techniques** such as **
 However, both the **validation** and **test** sets are **not augmented** and retain their original class distributions to reflect real-world scenarios.
 
 **🎯 Model Training & Threshold Selection:**  
-All models are trained to **maximize the F1 score**, while keeping sensitivity to **90 \%** which balances precision and recall, making it particularly suitable for highly imbalanced classification tasks. The classification **threshold** is tuned on the **validation set**. This tuned threshold is then applied to the test set for **final evaluation**, which is performed only once.
+All models are trained to **maximize the F1 score**, which balances precision and recall, making it particularly suitable for highly imbalanced classification tasks. The classification **threshold** is tuned on the **validation set**. This tuned threshold is then applied to the test set for **final evaluation**, which is performed only once.
 
 **📊 Evaluation Metrics:**  
 Model performance is assessed using the following metrics:
@@ -290,9 +334,23 @@ Model performance is assessed using the following metrics:
 
 This methodology ensures fair comparison and realistic performance estimation.
 
-##### 3.1. Baseline Model (No Imbalance Treatment)
+___
 
-```{r 3.1 Baseline, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+#### 3.1. Generalized Linear Models (GLM) 🔢
+
+In this section, we evaluate **logistic regression (GLM)** for handling the imbalanced dataset.  
+We explore the following strategies:
+
+1. **Baseline logistic regression** without any class imbalance treatment.  
+2. **Resampling approaches**: Random Over-Sampling (ROS), SMOTE, SMOTE-ENN, Random Under-Sampling (RUS)  
+
+The classification **threshold is tuned on the validation set** to maximize the **F1 score**,  
+ensuring that the model achieves a balance between **precision** and **recall** while accounting for the class imbalance.
+
+
+##### 3.1.1 Baseline GLM
+
+```{r  GLM_Baseline, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 train_control <- trainControl(method = "cv",
                               number = 5,
@@ -325,162 +383,213 @@ eval_fnc(cm_baseline)
 
 ```
 
-___
 
-##### 3.2. Resampling Techniques
-###### 3.2.1. Upsampling Methods - Random Over-Sampling (ROS)
 
-```{r 3.1 ROS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+##### 3.1.2 GLM + ROS
 
-data_train_upsampled_ros <- upSample(
+```{r GLM_ROS, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+data_train_ros <- upSample(
   x = subset(data_train, select = -Class),
   y = data_train$Class,
   yname = "Class")
 
-table(data_train_upsampled_ros$Class)
 
-model_upsample_ros <- train(Class ~ .,
-                            data = data_train_upsampled_ros,
+table(data_train_ros$Class)
+
+glm_ros <- train(Class ~ .,
+                            data = data_train_ros,
                             method = "glm",
                             trControl = train_control,
                             metric = "ROC")
 
-predictions_upsample_ros <- predict(model_upsample_ros, newdata = data_test)
+glm_ros_eval <- evaluate_model(glm_ros, 
+               data_valid,
+               data_test)
 
-cm_upsample_ros <- confusionMatrix(predictions_upsample_ros, 
-                                   data_test$Class, positive = "positive")
-eval_fnc(cm_upsample_ros)
+cm_glm_ros <- glm_ros_eval$cm
+
+best_thresh <- glm_ros_eval$best_thresh 
 
 ```
 
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_glm_ros)
+
+```
 ___
 
-###### 3.2.2. Upsampling Methods -  SMOTE (Synthetic Minority Over-sampling Technique)
+##### 3.1.3 GLM + SMOTE
 
-```{r 3.1 SMOTE, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
-
+```{r GLM_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 prepped_recipe_smote <- recipe(Class ~ ., data = data_train) %>%
   step_dummy(all_nominal_predictors()) %>%
   step_smote(Class)%>%prep()
 
-data_train_upsampled_smote <- juice(prepped_recipe_smote)
-data_test_upsampled_smote <- recipe(Class ~ ., data = data_test) %>%
+data_train_smote <- juice(prepped_recipe_smote)
+
+data_valid_smote <- recipe(Class ~ ., data = data_valid) %>%
   step_dummy(all_nominal_predictors()) %>%
   prep() %>%
   bake(new_data = NULL)
 
-table(data_train_upsampled_smote$Class)
+data_test_smote <- recipe(Class ~ ., data = data_test) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  prep() %>%
+  bake(new_data = NULL)
 
 
-model_upsample_smote <- train(Class ~ .,
-                              data = data_train_upsampled_smote,
+
+glm_smote <- train(Class ~ .,
+                              data = data_train_smote,
                               method = "glm",
                               family = "binomial",
                               trControl = train_control,
                               metric = "ROC")
 
-print(model_upsample_smote)
+glm_smote_eval <- evaluate_model(glm_smote, 
+               data_valid_smote,
+               data_test_smote)
 
-predictions_upsample_smote_prob <- predict(model_upsample_smote, newdata = data_test_upsampled_smote, type = "prob")
+cm_glm_smote <- glm_smote_eval$cm
 
-predictions_upsample_smote_class <- predict(model_upsample_smote, newdata = data_test_upsampled_smote, type = "raw")
+best_thresh <- cm_glm_smote$best_thresh 
 
-cm_upsample_smote <- confusionMatrix(predictions_upsample_smote_class, 
-                                   data_test$Class, positive = "positive")
-eval_fnc(cm_upsample_smote)
 ```
 
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_glm_smote)
+
+```
 ___
 
-###### 3.2.3. Upsampling Methods -  SMOTE-ENN
+##### 3.1.4 GLM + SMOTE-ENN
 
-```{r 3.1 SMOTE-ENN, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r GLM_SMOTE-ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 prepped_recipe_smote_enn <- recipe(Class ~ ., data = data_train) %>%
   step_dummy(all_nominal_predictors()) %>%
   step_smote(Class, over_ratio = 1)%>%prep()
 
 
-data_train_upsampled_smote_enn <- juice(prepped_recipe_smote_enn)
-data_test_upsampled_smote_enn <- recipe(Class ~ ., data = data_test) %>%
+data_train_smote_enn_start <- juice(prepped_recipe_smote_enn)
+data_test_smote_enn <- recipe(Class ~ ., data = data_test) %>%
   step_dummy(all_nominal_predictors()) %>%
   prep() %>%
   bake(new_data = NULL)
 
-data_valid_upsampled_smote_enn <- recipe(Class ~ ., data = data_valid) %>%
+data_valid_smote_enn <- recipe(Class ~ ., data = data_valid) %>%
   step_dummy(all_nominal_predictors()) %>%
   prep() %>%
   bake(new_data = NULL)
 
-data_train_upsampled_smote_enn$Class <- ifelse(
-  data_train_upsampled_smote_enn$Class == "negative", 0, 1)
+data_train_smote_enn_start$Class <- ifelse(
+  data_train_smote_enn_start$Class == "negative", 0, 1)
 
-data_train_upsampled_smote_enn <- ubENN(X = data_train_upsampled_smote_enn
-                    [, setdiff(names(data_train_upsampled_smote_enn), "Class")],
-                    Y =  data_train_upsampled_smote_enn$Class)
+data_train_smote_enn_start <- ubENN(X = data_train_smote_enn_start
+                    [, setdiff(names(data_train_smote_enn_start), "Class")],
+                    Y =  data_train_smote_enn_start$Class)
 
-data_train_upsampled_smote_enn_final <-
-  cbind(data_train_upsampled_smote_enn$X,
+data_train_smote_enn <-
+  cbind(data_train_smote_enn_start$X,
         data.frame(Class = factor(
           ifelse(
-          data_train_upsampled_smote_enn$Y == 0, 'negative','positive'),
+          data_train_smote_enn_start$Y == 0, 'negative','positive'),
           level = c('negative','positive'))))
 
-table(data_train_upsampled_smote_enn_final$Class)
+table(data_train_smote_enn$Class)
 
-glm_upsample_smote_enn <- train(Class ~ .,
-                              data = data_train_upsampled_smote_enn_final,
+glm_smote_enn <- train(Class ~ .,
+                              data = data_train_smote_enn,
                               method = "glm",
                               family = "binomial",
                               trControl = train_control,
                               metric = "ROC")
 
+glm_smote_enn_eval <- evaluate_model(glm_smote_enn, 
+               data_valid_smote_enn,
+               data_test_smote_enn)
 
-predictions_upsample_smote_enn <- predict(glm_upsample_smote_enn,
-                                            newdata = data_test_upsampled_smote_enn,
-                                            type = "raw")
+cm_glm_smote_enn <- glm_smote_enn_eval$cm
 
-cm_upsample_smote_enn <- confusionMatrix(predictions_upsample_smote_enn, 
-                                   data_test$Class, positive = "positive")
-eval_fnc(cm_upsample_smote_enn)
+best_thresh <- glm_smote_enn_eval$best_thresh 
 
 ```
 
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_glm_smote_enn)
+
+```
+
+
 ___
 
-###### 3.2.4. Downsampling Methods -  Random Under-Sampling (RUS)
+##### 3.1.5 GLM + RUS 
 
-```{r 3.2 RUS, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r GLM_RUS, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-data_train_downsampled_ros <- downSample(
+data_train_rus <- downSample(
   x = subset(data_train, select = -Class),
   y = data_train$Class,
   yname = "Class")
 
-table(data_train_downsampled_ros$Class)
+table(data_train_rus$Class)
 
-model_downsample_ros <- train(Class ~ .,
-                            data = data_train_downsampled_ros,
+glm_rus <- train(Class ~ .,
+                            data = data_train_rus,
                             method = "glm",
                             trControl = train_control,
                             metric = "ROC")
 
-predictions_downsample_ros <- predict(model_downsample_ros, newdata = data_test)
+glm_rus_eval <- evaluate_model(glm_rus, 
+               data_valid,
+               data_test)
 
-cm_downsample_ros <- confusionMatrix(predictions_downsample_ros, 
-                                   data_test$Class, positive = "positive")
-eval_fnc(cm_downsample_ros)
+cm_rus <- glm_rus_eval$cm
+
+best_thresh <- glm_rus_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_rus)
 
 ```
 
 ___
 
-##### 3.3. Cost-Sensitive Techniques
+#### 3.2 Random Forest 🌲
 
-###### 3.3.1. Regular Random Forest
+Random Forest is a robust ensemble method that often performs well with unbalanced data due to its ability to handle non-linear relationships.  
+In this section, we test different **Random Forest variations**:
 
-```{r 3.4 rf, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+1. **Baseline logistic regression** without any class imbalance treatment.  
+2. **Resampling approaches**: SMOTE-ENN and ADASYN
+3. **Cost-Sensitive Weights**
+
+The classification **threshold is tuned on the validation set** to maximize the **F1 score**,  
+ensuring that the model achieves a balance between **precision** and **recall** while accounting for the class imbalance.
+
+##### 3.2.1. Baseline RF
+
+```{r 3.4 rf, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 
 #  Random Forest
@@ -493,133 +602,76 @@ rf <- train(Class ~ .,
                      importance = 'permutation'
                     )
 
-predictions_rf <- predict(rf,
-                          newdata = data_test)
+rf_eval <- evaluate_model(rf, 
+               data_valid,
+               data_test)
 
-table(data_train$Class)
+cm_rf <- rf_eval$cm
 
-cm_rf <- confusionMatrix(predictions_rf, 
-                                   data_test$Class, positive = "positive")
-eval_fnc(cm_rf)
-
-```
-___
-
-###### 3.3.2. Weighted Random Forest
-
-```{r 3.5 rf_weighted, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
-
-
-n_negative_train <- sum(data_train$Class == "negative")
-n_positive_train <- sum(data_train$Class == "positive")
-
-model_weights <- c(
-  negative = (n_negative_train + n_positive_train) / (2 * n_negative_train),
-  positive = (n_negative_train + n_positive_train) / (2 * n_positive_train))
-
-
-# Weighted Random Forest
-weighted_rf <- train(Class ~ .,
-                     data = data_train,
-                     method = "ranger",
-                     trControl = train_control,
-                     metric = "ROC",
-                     class.weights = model_weights,
-                     num.trees = 100, ## Default is 500
-                     importance = 'permutation'
-                    )
-
-best_model <- weighted_rf$bestTune
-cv_preds <- weighted_rf$pred
-cv_preds_best <- subset(cv_preds,
-                        mtry == best_model$mtry)
-
-roc_obj_cv <- roc(response = cv_preds_best$obs,
-                  predictor = cv_preds_best$positive, 
-                  levels = c("negative", "positive"))
-
-roc_cords <- coords(roc_obj_cv)
-## Fixing the sensitivity at 95%
-high_sens <- roc_cords[roc_cords$sensitivity >= 0.95, ]
-## Choosing the best specificity
-best_thresh <- high_sens[which.max(high_sens$specificity), "threshold"]
-
-
-probs <- predict(weighted_rf, newdata = data_test, type = "prob")[, "positive"]
-
-pred_classes <- ifelse(probs >= best_thresh, "positive", "negative")
-
-pred_classes <- factor(pred_classes, levels = c("negative", "positive"))
-
-cm_weighted_rf <- confusionMatrix(pred_classes, data_test$Class, positive = "positive")
-
+best_thresh <- rf_eval$best_thresh 
 
 ```
 
-ROC is used to find an optimal threshold for classification. The threshold is supposed to maximize the specificity while keeping the sensitivity at the minimum of 95\%. That leads to choosing the threshold of `r round(best_thresh,2)`
-
-```{r 3.5 rf_weighted_report, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
-
-eval_fnc(cm_weighted_rf)
-
-```
-
-
-###### 3.3.3. Random Forest with SMOTE-ENN
-
-```{r 3.6 rf_SMOTE_ENN, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
-
-rf_smote_enn <- train(Class ~ .,
-                     data = data_train_upsampled_smote_enn_final,
-                     method = "ranger",
-                     trControl = train_control,
-                     metric = "ROC",
-                     num.trees = 100, ## Default is 500
-                     importance = 'permutation'
-                    )
-
-probs_valid <- predict(rf_smote_enn, newdata = data_valid_upsampled_smote_enn , type = "prob")[, "positive"]
-
-roc_obj_valid <- roc(response = data_valid$Class,
-                     predictor = probs_valid,
-                     levels = c("negative", "positive"))
-
-
-best_thresh <- best_threshold(roc_obj_valid)
-
-probs <- predict(rf_smote_enn, newdata = data_test_upsampled_smote_enn, type = "prob")[, "positive"]
-
-pred_classes <- ifelse(probs >= best_thresh, "positive", "negative")
-
-pred_classes <- factor(pred_classes, levels = c("negative", "positive"))
-
-cm_rf_smote_enn <- confusionMatrix(pred_classes, data_test_upsampled_smote_enn$Class, positive = "positive")
-
-
-```
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_rf)
+
+```
+
+___
+
+
+##### 3.2.2 RF + SMOTE-ENN
+
+```{r rf_SMOTE_ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+rf_smote_enn <- train(Class ~ .,
+                     data = data_train_smote_enn_final,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+rf_smote_enn_eval <- evaluate_model(rf_smote_enn, 
+               data_valid_smote_enn,
+               data_test_smote_enn)
+
+cm_rf_smote_enn <- glm_upsample_smote_enn_eval$cm
+
+best_thresh <- glm_upsample_smote_enn_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_rf_smote_enn)
 
 ```
 
+___
 
-###### 3.3.4. Random Forest with ADASYN
 
-```{r 3.7 rf_ADASYN, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+##### 3.2.3 RF + ADASYN
+
+```{r rf_ADASYN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 data_train$Class <- as.factor(data_train$Class)
 
-X <- model.matrix(Class ~ . - 1, data = data_train) 
-X <- as.data.frame(X)
-X$Class <- data_train$Class
+X_train <- model.matrix(Class ~ . - 1, data = data_train) 
+X_train <- as.data.frame(X_train)
+X_train$Class <- data_train$Class
 ## The reason for using model.matrix is to ensure all factors are well transformed 
 ## into integer numbers
 
-data_train_adasyn <- AdasynClassif(Class ~ ., X)
+data_train_adasyn <- AdasynClassif(Class ~ ., X_train)
 
 
 rf_adasyn <- train(Class ~ .,
@@ -635,35 +687,185 @@ X_valid <- model.matrix(Class ~ . - 1, data = data_valid)
 X_valid <- as.data.frame(X_valid)
 X_valid$Class <- data_valid$Class
 
-probs_valid <- predict(rf_adasyn, newdata = X_valid, type = "prob")[, "positive"]
-
-roc_obj_valid <- roc(response = X_valid$Class,
-                     predictor = probs_valid,
-                     levels = c("negative", "positive"))
-
-
-best_thresh <- best_threshold(roc_obj_valid)
-
 
 X_test <- model.matrix(Class ~ . - 1, data = data_test)
 X_test <- as.data.frame(X_test)
 X_test$Class <- data_test$Class
 
-probs <- predict(rf_adasyn, newdata = X_test, type = "prob")[, "positive"]
+rf_adasyn_eval <- evaluate_model(rf_adasyn, 
+               X_valid,
+               X_test)
 
-pred_classes <- ifelse(probs >= best_thresh, "positive", "negative")
+cm_rf_adasyn <- rf_adasyn_eval$cm
 
-pred_classes <- factor(pred_classes, levels = c("negative", "positive"))
+best_thresh <- rf_adasyn_eval$best_thresh 
 
-cm_rf_adasyn <- confusionMatrix(pred_classes, X_test$Class, positive = "positive")
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_rf_adasyn)
+
+```
+
+___
+
+#### 3.3 Boosting (XGBoost) ⚡
+
+In this section, we explore the **XGBoost** algorithm, a powerful gradient boosting technique, for handling the severe class imbalance.
+
+We compare the following strategies:
+1. **Baseline logistic regression** without any class imbalance treatment. 
+2. **Resampling approaches**: **SMOTE**, **SMOTE-ENN**, and **ADASYN**.  
+3. **Cost-Sensitive Weights**
+
+As with previous models, the **classification threshold** is tuned on the **validation set** to maximize the **F1 score**, ensuring a balance between precision and recall.
+
+##### 3.3.1 Baseline XGBoost 
+
+```{r XGBoost, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train <- model.matrix(Class ~ . - 1, data = data_train)
+y_train <- ifelse(data_train$Class == "positive", 1, 0)
+
+xgb <- xgboost(
+  data = x_train,
+  label = y_train,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc"
+)
+
+xgb_eval <- evaluate_model(xgb, 
+               data_valid,
+               data_test)
+
+cm_xgb <- xgb_eval$cm
+
+best_thresh <- xgb_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r XGBoost_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_xgb)
+
+```
+
+___
+
+
+
+##### 3.3.2 XGBoost + SMOTE 
+
+```{r XGBOOST_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train_smote <- model.matrix(Class ~ . - 1, data = data_train_smote)
+y_train_smote <- ifelse(data_train_smote$Class == "positive", 1, 0)
+
+xgb_smote <- xgboost(
+  data = x_train_smote,
+  label = y_train_smote,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc"
+)
+
+xgb_smote_eval <- evaluate_model(xgb_smote, 
+               data_valid_smote,
+               data_test_smote)
+
+cm_xgb_smote <- xgb_smote_eval$cm
+
+best_thresh <- xgb_smote_eval$best_thresh 
+
 
 ```
 
 Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.7 rf_ADASYN_report, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+```{r 3.7 XGBOOST_SMOTE_report , echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_rf_adasyn)
+eval_fnc(cm_xgb_smote)
 
 ```
+
+
+##### 3.3.3 XGBoost + SMOTE-ENN
+
+```{r XGBOOST_SMOTE_ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train_smote_enn <- model.matrix(Class ~ . - 1, data = data_train_smote_enn)
+y_train_smote_enn <- ifelse(data_train_smote_enn$Class == "positive", 1, 0)
+
+xgb_smote_enn <- xgboost(
+  data = x_train_smote_enn,
+  label = y_train_smote_enn,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc"
+)
+
+xgb_smote_enn_eval <- evaluate_model(xgb_smote_enn, 
+               data_valid_smote_enn,
+               data_test_smote_enn)
+
+cm_xgb_smote_enn <- xgb_smote_enn_eval$cm
+
+best_thresh <- xgb_smote_enn_eval$best_thresh 
+
+
+```
+
+Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_xgb_smote_enn)
+
+```
+
+##### 3.3.4 XGBoost + ADASYN
+
+
+```{r XGBoost_ADASYN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train_adasyn <- model.matrix(Class ~ . - 1, data = data_train_adasyn)
+y_train_adasyn <- ifelse(data_train_adasyn$Class == "positive", 1, 0)
+
+
+xgb_adasyn <- xgboost(
+  data = x_train_adasyn,
+  label = y_train_adasyn,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc"
+)
+
+xgb_adasyn_eval <- evaluate_model(xgb_adasyn, 
+               X_valid,
+               X_test)
+
+cm_xgb_adasyn <- xgb_adasyn_eval$cm
+
+best_thresh <- xgb_adasyn_eval$best_thresh 
+
+
+```
+
+Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_xgb_adasyn)
+
+```
+
+
 

@@ -11,7 +11,7 @@
 
 <meta name="author" content="Hamed Helisaz" />
 
-<meta name="date" content="2025-06-27" />
+<meta name="date" content="2025-07-19" />
 
 <title>Comparing Methods for Handling Imbalanced Datasets</title>
 
@@ -1482,7 +1482,7 @@ border-radius: 0px;
 <h1 class="title toc-ignore">Comparing Methods for Handling Imbalanced
 Datasets</h1>
 <h4 class="author">Hamed Helisaz</h4>
-<h4 class="date">2025-06-27</h4>
+<h4 class="date">2025-07-19</h4>
 
 </div>
 
@@ -1904,7 +1904,9 @@ positive
 <p>The following machine learning workflow is considered for all
 models:</p>
 <p><strong>📦 Data Splitting:</strong><br />
-The original dataset is divided into three parts:</p>
+The original dataset is divided into three parts: I used
+<strong>stratified splits</strong> to ensure the minority class is
+represented in all subsets.</p>
 <ul>
 <li><strong>Training set (≈56%)</strong>: used to train the model.<br />
 </li>
@@ -2028,7 +2030,7 @@ Technique)</h6>
 </div>
 <div id="upsampling-methods---smote-enn" class="section level6">
 <h6>3.2.3. Upsampling Methods - SMOTE-ENN</h6>
-<pre><code>## Number of instances removed from majority class with ENN: 1526    Time needed: 2.51</code></pre>
+<pre><code>## Number of instances removed from majority class with ENN: 1526    Time needed: 2.42</code></pre>
 <pre><code>## 
 ## negative positive 
 ##    21600    23126</code></pre>
@@ -2097,30 +2099,30 @@ of 0.01</p>
 <div id="random-forest-with-smote-enn" class="section level6">
 <h6>3.3.3. Random Forest with SMOTE-ENN</h6>
 <p>ROC is used to find an optimal threshold for classification. This
-time, the threshold is 0</p>
+time, the threshold is 0.15</p>
 <pre><code>##           Reference
 ## Prediction negative positive
-##   negative     4464       11
-##   positive     3795      117
+##   negative     7792       96
+##   positive      467       32
 ## 
-## Sensitivity: 0.914
-## Specificity: 0.541
-## Precision:    0.03
-## F1 Score:    0.058</code></pre>
+## Sensitivity: 0.25
+## Specificity: 0.943
+## Precision:    0.064
+## F1 Score:    0.102</code></pre>
 </div>
 <div id="random-forest-with-adasyn" class="section level6">
 <h6>3.3.4. Random Forest with ADASYN</h6>
 <p>Again, ROC is used to find an optimal threshold for classification.
-This time, the threshold is 0.01</p>
+This time, the threshold is 0.05</p>
 <pre><code>##           Reference
 ## Prediction negative positive
-##   negative     5332       14
-##   positive     2927      114
+##   negative     7517       73
+##   positive      742       55
 ## 
-## Sensitivity: 0.891
-## Specificity: 0.646
-## Precision:    0.037
-## F1 Score:    0.072</code></pre>
+## Sensitivity: 0.43
+## Specificity: 0.91
+## Precision:    0.069
+## F1 Score:    0.119</code></pre>
 </div>
 </div>
 </div>
