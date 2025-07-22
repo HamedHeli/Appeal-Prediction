@@ -31,6 +31,7 @@ library(UBL)
 library(xgboost)
 library(tidymodels)
 library(xgboost)
+library(keras)
 set.seed(456)
 ```
 
@@ -711,6 +712,49 @@ eval_fnc(cm_rf_adasyn)
 
 ```
 
+##### 3.2.4 Weighted RF
+
+```{r rf_weighted, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
+
+
+n_negative_train <- sum(data_train$Class == "negative")
+n_positive_train <- sum(data_train$Class == "positive")
+
+model_weights <- c(
+  negative = (n_negative_train + n_positive_train) / (2 * n_negative_train),
+  positive = (n_negative_train + n_positive_train) / (2 * n_positive_train))
+
+
+# Weighted Random Forest
+weighted_rf <- train(Class ~ .,
+                     data = data_train,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights,
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+weighted_rf_eval <- evaluate_model(weighted_rf, 
+               data_valid,
+               data_test)
+
+cm_weighted_rf <- weighted_rf_eval$cm
+
+best_thresh <- weighted_rf_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_weighted_rf)
+
+```
+
 ___
 
 #### 3.3 Boosting (XGBoost) ⚡
@@ -867,5 +911,236 @@ eval_fnc(cm_xgb_adasyn)
 
 ```
 
+##### 3.3.5 Weighted XGBoost
 
+```{r XGBoost_weighted, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+
+weight_negative <- (n_negative_train + n_positive_train) / (2 * n_negative_train)
+weight_positive <- (n_negative_train + n_positive_train) / (2 * n_positive_train)
+
+# Create a vector of weights per row
+row_weights <- ifelse(y_train == 1, model_weights[['positive']], model_weights[['negative']])
+
+
+weighted_xgb <- xgboost(
+  data = x_train,
+  label = y_train,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc",
+  weight = row_weights
+)
+
+weighted_xgb_eval <- evaluate_model(weighted_xgb, 
+               data_valid,
+               data_test)
+
+cm_weighted_xgb <- weighted_xgb_eval$cm
+
+best_thresh <- weighted_xgb_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_weighted_xgb)
+
+```
+
+
+#### 3.4  Neural Networks (NN) 🧠
+
+In this section, we explore **feed-forward Neural Networks (NN)** for the same task. Neural networks can capture complex patterns but are also sensitive to class imbalance.
+
+We compare the following strategies:
+1. **Baseline logistic regression** without any class imbalance treatment. 
+2. **Resampling approaches**: **SMOTE**, **SMOTE-ENN**, and **ADASYN**.  
+3. **Cost-Sensitive Weights**
+
+As with previous models, the **classification threshold** is tuned on the **validation set** to maximize the **F1 score**, ensuring a balance between precision and recall.
+
+##### 3.4.1 Baseline NN 
+
+```{r NN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train <- model.matrix(Class ~ . - 1, data = data_train)
+y_train <- ifelse(data_train$Class == "positive", 1, 0)
+
+nn <- keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = ncol(x_train)) %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 8, activation = "relu") %>%
+  layer_dense(units = 1, activation = "sigmoid")
+
+nn_eval <- evaluate_model(nn, 
+               data_valid,
+               data_test)
+
+cm_nn <- nn_eval$cm
+
+best_thresh <- nn_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r XGBoost_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_xgb)
+
+```
+
+___
+
+
+
+##### 3.3.2 XGBoost + SMOTE 
+
+```{r XGBOOST_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train_smote <- model.matrix(Class ~ . - 1, data = data_train_smote)
+y_train_smote <- ifelse(data_train_smote$Class == "positive", 1, 0)
+
+xgb_smote <- xgboost(
+  data = x_train_smote,
+  label = y_train_smote,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc"
+)
+
+xgb_smote_eval <- evaluate_model(xgb_smote, 
+               data_valid_smote,
+               data_test_smote)
+
+cm_xgb_smote <- xgb_smote_eval$cm
+
+best_thresh <- xgb_smote_eval$best_thresh 
+
+
+```
+
+Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.7 XGBOOST_SMOTE_report , echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_xgb_smote)
+
+```
+
+
+##### 3.3.3 XGBoost + SMOTE-ENN
+
+```{r XGBOOST_SMOTE_ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train_smote_enn <- model.matrix(Class ~ . - 1, data = data_train_smote_enn)
+y_train_smote_enn <- ifelse(data_train_smote_enn$Class == "positive", 1, 0)
+
+xgb_smote_enn <- xgboost(
+  data = x_train_smote_enn,
+  label = y_train_smote_enn,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc"
+)
+
+xgb_smote_enn_eval <- evaluate_model(xgb_smote_enn, 
+               data_valid_smote_enn,
+               data_test_smote_enn)
+
+cm_xgb_smote_enn <- xgb_smote_enn_eval$cm
+
+best_thresh <- xgb_smote_enn_eval$best_thresh 
+
+
+```
+
+Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_xgb_smote_enn)
+
+```
+
+##### 3.3.4 XGBoost + ADASYN
+
+
+```{r XGBoost_ADASYN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+x_train_adasyn <- model.matrix(Class ~ . - 1, data = data_train_adasyn)
+y_train_adasyn <- ifelse(data_train_adasyn$Class == "positive", 1, 0)
+
+
+xgb_adasyn <- xgboost(
+  data = x_train_adasyn,
+  label = y_train_adasyn,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc"
+)
+
+xgb_adasyn_eval <- evaluate_model(xgb_adasyn, 
+               X_valid,
+               X_test)
+
+cm_xgb_adasyn <- xgb_adasyn_eval$cm
+
+best_thresh <- xgb_adasyn_eval$best_thresh 
+
+
+```
+
+Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_xgb_adasyn)
+
+```
+
+##### 3.3.5 Weighted XGBoost
+
+```{r XGBoost_weighted, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+
+weight_negative <- (n_negative_train + n_positive_train) / (2 * n_negative_train)
+weight_positive <- (n_negative_train + n_positive_train) / (2 * n_positive_train)
+
+# Create a vector of weights per row
+row_weights <- ifelse(y_train == 1, model_weights[['positive']], model_weights[['negative']])
+
+
+weighted_xgb <- xgboost(
+  data = x_train,
+  label = y_train,
+  objective = "binary:logistic",
+  nrounds = 100,
+  eval_metric = "auc",
+  weight = row_weights
+)
+
+weighted_xgb_eval <- evaluate_model(weighted_xgb, 
+               data_valid,
+               data_test)
+
+cm_weighted_xgb <- weighted_xgb_eval$cm
+
+best_thresh <- weighted_xgb_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_weighted_xgb)
+
+```
 
