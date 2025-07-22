@@ -20,18 +20,15 @@ library(patchwork)
 library(recipes)
 library(themis)
 library(smotefamily)
-library(UBL)
-library(unbalanced)
 library(devtools)
 library(caret)
 library(formattable)
 library(kableExtra)
 library(pROC)
-library(UBL)
 library(xgboost)
 library(tidymodels)
 library(xgboost)
-library(keras)
+library(torch)
 set.seed(456)
 ```
 
@@ -318,6 +315,19 @@ The original dataset is divided into three parts: I used **stratified splits** t
 
 This 3-way split ensures that model selection and threshold tuning do not bias the final reported performance.
 
+```{r  data_split, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+test_index <- createDataPartition(data$Class, p = 0.8, list = FALSE)
+data_train_valid <- data[test_index, ]
+data_test <- data[-test_index, ]
+
+train_index <- createDataPartition(data_train_valid$Class, p = 0.7, list = FALSE)
+data_train <- data_train_valid[train_index, ]
+data_valid <- data_train_valid[-train_index, ]
+
+```
+
+
 **⚖️ Handling Class Imbalance:**  
 All training datasets are augmented using **oversampling techniques** such as **SMOTE**, **ADASYN**, or **SMOTE-ENN** to address the severe class imbalance (positive class ≈1%).  
 However, both the **validation** and **test** sets are **not augmented** and retain their original class distributions to reflect real-world scenarios.
@@ -359,14 +369,6 @@ train_control <- trainControl(method = "cv",
                               summaryFunction = twoClassSummary,
                               savePredictions = "final")
 
-
-test_index <- createDataPartition(data$Class, p = 0.8, list = FALSE)
-data_train_valid <- data[test_index, ]
-data_test <- data[-test_index, ]
-
-train_index <- createDataPartition(data_train_valid$Class, p = 0.7, list = FALSE)
-data_train <- data_train_valid[train_index, ]
-data_valid <- data_train_valid[-train_index, ]
 
 model_baseline <- train(Class ~ .,
                         data = data_train,
@@ -967,14 +969,48 @@ As with previous models, the **classification threshold** is tuned on the **vali
 
 ```{r NN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-x_train <- model.matrix(Class ~ . - 1, data = data_train)
-y_train <- ifelse(data_train$Class == "positive", 1, 0)
+x_train <- torch_tensor(as.matrix(model.matrix(Class ~ . - 1, data = data_train)), 
+                        dtype = torch_float())
+y_train <- torch_tensor(ifelse(data_train$Class == "positive", 1, 0), 
+                        dtype = torch_float())$unsqueeze(2)
 
-nn <- keras_model_sequential() %>%
-  layer_dense(units = 16, activation = "relu", input_shape = ncol(x_train)) %>%
-  layer_dropout(rate = 0.3) %>%
-  layer_dense(units = 8, activation = "relu") %>%
-  layer_dense(units = 1, activation = "sigmoid")
+nn_define <- nn_module(
+  "Net",
+  initialize = function(input_dim) {
+    self$fc1 <- nn_linear(input_dim, 16)
+    self$dropout <- nn_dropout(p = 0.3)
+    self$fc2 <- nn_linear(16, 8)
+    self$fc3 <- nn_linear(8, 1)
+  },
+  forward = function(x) {
+    x %>%
+      self$fc1() %>%
+      nnf_relu() %>%
+      self$dropout() %>%
+      self$fc2() %>%
+      nnf_relu() %>%
+      self$fc3() %>%
+      nnf_sigmoid()
+  }
+)
+
+nn <- nn_define(input_dim = ncol(x_train))
+
+optimizer <- optim_adam(nn$parameters, lr = 0.001)
+loss_fn <- nn_bce_loss()
+
+for (epoch in 1:100) {
+  nn$train()
+  optimizer$zero_grad()
+  output <- nn(x_train)
+  loss <- loss_fn(output, y_train)
+  loss$backward()
+  optimizer$step()
+
+  if (epoch %% 10 == 0) {
+    cat(sprintf("Epoch %d, Loss: %.4f\n", epoch, loss$item()))
+  }
+}
 
 nn_eval <- evaluate_model(nn, 
                data_valid,
