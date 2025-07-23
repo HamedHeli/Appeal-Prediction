@@ -29,6 +29,8 @@ library(xgboost)
 library(tidymodels)
 library(xgboost)
 library(torch)
+library(unbalanced)
+library(UBL)
 set.seed(456)
 ```
 
@@ -1002,7 +1004,7 @@ nn <- nn_define(input_dim = ncol(x_train))
 optimizer <- optim_adam(nn$parameters, lr = 0.001)
 loss_fn <- nn_bce_loss()
 
-for (epoch in 1:60) {
+for (epoch in 1:100) {
   nn$train()
   optimizer$zero_grad()
   output <- nn(x_train)
@@ -1037,7 +1039,6 @@ eval_fnc(cm_nn)
 ___
 
 
-
 ##### 3.3.2 NN + SMOTE 
 
 ```{r NN_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
@@ -1052,7 +1053,7 @@ nn_smote <- nn_define(input_dim = ncol(x_train_smote))
 optimizer <- optim_adam(nn_smote$parameters, lr = 0.001)
 loss_fn <- nn_bce_loss()
 
-for (epoch in 1:60) {
+for (epoch in 1:100) {
   nn_smote$train()
   optimizer$zero_grad()
   output <- nn_smote(x_train_smote)
@@ -1066,8 +1067,8 @@ for (epoch in 1:60) {
 }
 
 nn_smote_eval <- evaluate_model(nn_smote, 
-               data_valid,
-               data_test)
+               data_valid_smote,
+               data_test_smote)
 
 cm_nn_smote <- nn_smote_eval$cm
 
@@ -1084,37 +1085,50 @@ eval_fnc(cm_nn_smote)
 
 ```
 
-##### 3.3.3 XGBoost + SMOTE-ENN
 
-```{r XGBOOST_SMOTE_ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+##### 3.3.2 NN + SMOTE-ENN 
 
-x_train_smote_enn <- model.matrix(Class ~ . - 1, data = data_train_smote_enn)
-y_train_smote_enn <- ifelse(data_train_smote_enn$Class == "positive", 1, 0)
+```{r NN_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-xgb_smote_enn <- xgboost(
-  data = x_train_smote_enn,
-  label = y_train_smote_enn,
-  objective = "binary:logistic",
-  nrounds = 100,
-  eval_metric = "auc"
-)
+x_train_smote_enn <- torch_tensor(as.matrix(model.matrix(Class ~ . - 1, data = data_train_smote_enn)), 
+                        dtype = torch_float())
+y_train_smote_enn <- torch_tensor(ifelse(data_train_smote_enn$Class == "positive", 1, 0), 
+                        dtype = torch_float())$unsqueeze(2)
 
-xgb_smote_enn_eval <- evaluate_model(xgb_smote_enn, 
+nn_smote_enn <- nn_define(input_dim = ncol(x_train_smote_enn))
+
+optimizer <- optim_adam(nn_smote_enn$parameters, lr = 0.001)
+loss_fn <- nn_bce_loss()
+
+for (epoch in 1:100) {
+  nn_smote_enn$train()
+  optimizer$zero_grad()
+  output <- nn_smote_enn(x_train_smote)
+  loss <- loss_fn(output, y_train_smote)
+  loss$backward()
+  optimizer$step()
+
+  if (epoch %% 10 == 0) {
+    cat(sprintf("Epoch %d, Loss: %.4f\n", epoch, loss$item()))
+  }
+}
+
+nn_smote_enn_eval <- evaluate_model(nn_smote_enn, 
                data_valid_smote_enn,
                data_test_smote_enn)
 
-cm_xgb_smote_enn <- xgb_smote_enn_eval$cm
+cm_nn_smote_enn <- nn_smote_enn_eval$cm
 
-best_thresh <- xgb_smote_enn_eval$best_thresh 
-
+best_thresh <- nn_smote_enn_eval$best_thresh 
 
 ```
 
-Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-eval_fnc(cm_xgb_smote_enn)
+```{r NN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_nn_smote_enn)
 
 ```
 
