@@ -1000,11 +1000,9 @@ nn_define <- nn_module(
 nn <- nn_define(input_dim = ncol(x_train))
 
 optimizer <- optim_adam(nn$parameters, lr = 0.001)
-loss_fn <- function(input, target) {
-  nnf_binary_cross_entropy(input, target, weight = ifelse(target == 1, 5, 1))  # example weights
-}
+loss_fn <- nn_bce_loss()
 
-for (epoch in 1:100) {
+for (epoch in 1:60) {
   nn$train()
   optimizer$zero_grad()
   output <- nn(x_train)
@@ -1030,7 +1028,7 @@ best_thresh <- nn_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r XGBoost_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r NN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_nn)
 
@@ -1040,40 +1038,51 @@ ___
 
 
 
-##### 3.3.2 XGBoost + SMOTE 
+##### 3.3.2 NN + SMOTE 
 
-```{r XGBOOST_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r NN_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-x_train_smote <- model.matrix(Class ~ . - 1, data = data_train_smote)
-y_train_smote <- ifelse(data_train_smote$Class == "positive", 1, 0)
+x_train_smote <- torch_tensor(as.matrix(model.matrix(Class ~ . - 1, data = data_train_smote)), 
+                        dtype = torch_float())
+y_train_smote <- torch_tensor(ifelse(data_train_smote$Class == "positive", 1, 0), 
+                        dtype = torch_float())$unsqueeze(2)
 
-xgb_smote <- xgboost(
-  data = x_train_smote,
-  label = y_train_smote,
-  objective = "binary:logistic",
-  nrounds = 100,
-  eval_metric = "auc"
-)
+nn_smote <- nn_define(input_dim = ncol(x_train_smote))
 
-xgb_smote_eval <- evaluate_model(xgb_smote, 
-               data_valid_smote,
-               data_test_smote)
+optimizer <- optim_adam(nn_smote$parameters, lr = 0.001)
+loss_fn <- nn_bce_loss()
 
-cm_xgb_smote <- xgb_smote_eval$cm
+for (epoch in 1:60) {
+  nn_smote$train()
+  optimizer$zero_grad()
+  output <- nn_smote(x_train_smote)
+  loss <- loss_fn(output, y_train_smote)
+  loss$backward()
+  optimizer$step()
 
-best_thresh <- xgb_smote_eval$best_thresh 
+  if (epoch %% 10 == 0) {
+    cat(sprintf("Epoch %d, Loss: %.4f\n", epoch, loss$item()))
+  }
+}
 
+nn_smote_eval <- evaluate_model(nn_smote, 
+               data_valid,
+               data_test)
+
+cm_nn_smote <- nn_smote_eval$cm
+
+best_thresh <- nn_smote_eval$best_thresh 
 
 ```
 
-Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.7 XGBOOST_SMOTE_report , echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-eval_fnc(cm_xgb_smote)
+```{r NN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+eval_fnc(cm_nn_smote)
 
 ```
-
 
 ##### 3.3.3 XGBoost + SMOTE-ENN
 
