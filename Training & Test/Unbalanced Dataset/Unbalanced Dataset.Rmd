@@ -86,23 +86,26 @@ best_threshold <- function(roc){
 ### Find the model + testing it to find the valuation criteria
 evaluate_model <- function(model, valid_data, test_data) {
   
-  # Helper: safe probability prediction
+  is_torch_model <- inherits(model, "nn_module")
+  is_xgb_model <- inherits(model, "xgb.Booster")
+
   predict_probs <- function(model, newdata) {
-    tryCatch({
-      # Try caret-style predict
-      predict(model, newdata = newdata, type = "prob")[, "positive"]
-    }, error = function(e) {
-      message("Falling back to xgboost-style prediction: ", e$message)
-      
-      # Convert to numeric matrix
-      x_mat <- model.matrix(Class ~ . - 1, data = newdata)
-      predict(model, x_mat)
-    })
-  }
+    if (is_torch_model) {
+  x_mat <- torch_tensor(as.matrix(model.matrix(Class ~ . - 1, data = newdata)), 
+                        dtype = torch_float())
+  probs_valid <-as.numeric(as_array( model(x_mat)))
+} else if (is_xgb_model) {
+  x_mat <- model.matrix(Class ~ . - 1, data = newdata)
+  probs_valid <- predict(model, x_mat)
+} else {
+  probs_valid <- predict(model, newdata = newdata, type = "prob")[, "positive"]
   
-  # Predict on validation set
+}
+    
+    return(probs_valid)
+    }
+  
   probs_valid <- predict_probs(model, valid_data)
-  
   # ROC on validation
   roc_obj_valid <- roc(response = valid_data$Class,
                        predictor = probs_valid,
@@ -1027,7 +1030,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r XGBoost_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_xgb)
+eval_fnc(cm_nn)
 
 ```
 
