@@ -1000,7 +1000,9 @@ nn_define <- nn_module(
 nn <- nn_define(input_dim = ncol(x_train))
 
 optimizer <- optim_adam(nn$parameters, lr = 0.001)
-loss_fn <- nn_bce_loss()
+loss_fn <- function(input, target) {
+  nnf_binary_cross_entropy(input, target, weight = ifelse(target == 1, 5, 1))  # example weights
+}
 
 for (epoch in 1:100) {
   nn$train()
