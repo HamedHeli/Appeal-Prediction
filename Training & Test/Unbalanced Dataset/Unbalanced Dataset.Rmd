@@ -21,7 +21,6 @@ library(recipes)
 library(themis)
 library(smotefamily)
 library(devtools)
-library(caret)
 library(formattable)
 library(kableExtra)
 library(pROC)
@@ -31,6 +30,13 @@ library(xgboost)
 library(torch)
 library(unbalanced)
 library(UBL)
+library(caret)
+library(conflicted)
+conflict_prefer("filter", "dplyr")
+conflict_prefer("train", "caret")
+conflict_prefer("comma", "scales")
+conflict_prefer("percent", "scales")
+
 set.seed(456)
 ```
 
@@ -424,7 +430,7 @@ best_thresh <- glm_ros_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r glm_ros_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_glm_ros)
 
@@ -473,7 +479,7 @@ best_thresh <- cm_glm_smote$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r glm_SMOTE_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_glm_smote)
 
@@ -536,7 +542,7 @@ best_thresh <- glm_smote_enn_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r glm_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_glm_smote_enn)
 
@@ -575,7 +581,7 @@ best_thresh <- glm_rus_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r glm_rus_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_rus)
 
@@ -623,7 +629,7 @@ best_thresh <- rf_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r 3.6 rf_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_rf)
 
@@ -713,7 +719,7 @@ best_thresh <- rf_adasyn_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r 3.6 rf_adasyn_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_rf_adasyn)
 
@@ -756,7 +762,7 @@ best_thresh <- weighted_rf_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r 3.6 rf_weighted_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_weighted_rf)
 
@@ -876,7 +882,7 @@ best_thresh <- xgb_smote_enn_eval$best_thresh
 
 Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_xgb_smote_enn)
 
@@ -912,7 +918,7 @@ best_thresh <- xgb_adasyn_eval$best_thresh
 
 Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r XGBOOST_ADASYN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_xgb_adasyn)
 
@@ -952,7 +958,7 @@ best_thresh <- weighted_xgb_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r 3.6 xgb_weighted_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_weighted_xgb)
 
@@ -1079,7 +1085,7 @@ best_thresh <- nn_smote_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r NN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r NN_SMOTE_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_nn_smote)
 
@@ -1088,7 +1094,7 @@ eval_fnc(cm_nn_smote)
 
 ##### 3.3.2 NN + SMOTE-ENN 
 
-```{r NN_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r NN_SMOTE_ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 x_train_smote_enn <- torch_tensor(as.matrix(model.matrix(Class ~ . - 1, data = data_train_smote_enn)), 
                         dtype = torch_float())
@@ -1126,85 +1132,113 @@ best_thresh <- nn_smote_enn_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r NN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r NN_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 eval_fnc(cm_nn_smote_enn)
 
 ```
 
-##### 3.3.4 XGBoost + ADASYN
+##### 3.3.4 NN + ADASYN
 
 
-```{r XGBoost_ADASYN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r NN_ADASYN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-x_train_adasyn <- model.matrix(Class ~ . - 1, data = data_train_adasyn)
-y_train_adasyn <- ifelse(data_train_adasyn$Class == "positive", 1, 0)
+x_train_adasyn <- torch_tensor(
+  as.matrix(model.matrix(Class ~ . - 1, data = data_train_adasyn)), 
+                        dtype = torch_float())
+y_train_adasyn <- torch_tensor(
+  ifelse(data_train_adasyn$Class == "positive", 1, 0), 
+                        dtype = torch_float())$unsqueeze(2)
+
+nn_adasyn <- nn_define(input_dim = ncol(x_train_adasyn))
+
+optimizer <- optim_adam(nn_smote_enn$parameters, lr = 0.001)
+loss_fn <- nn_bce_loss()
+
+for (epoch in 1:100) {
+  nn_adasyn$train()
+  optimizer$zero_grad()
+  output <- nn_adasyn(x_train_adasyn)
+  loss <- loss_fn(output, y_train_adasyn)
+  loss$backward()
+  optimizer$step()
+
+  if (epoch %% 10 == 0) {
+    cat(sprintf("Epoch %d, Loss: %.4f\n", epoch, loss$item()))
+  }
+}
 
 
-xgb_adasyn <- xgboost(
-  data = x_train_adasyn,
-  label = y_train_adasyn,
-  objective = "binary:logistic",
-  nrounds = 100,
-  eval_metric = "auc"
-)
-
-xgb_adasyn_eval <- evaluate_model(xgb_adasyn, 
+nn_adasyn_eval <- evaluate_model(nn_adasyn, 
                X_valid,
                X_test)
 
-cm_xgb_adasyn <- xgb_adasyn_eval$cm
+cm_nn_adasyn <- nn_adasyn_eval$cm
 
-best_thresh <- xgb_adasyn_eval$best_thresh 
+best_thresh <- nn_adasyn_eval$best_thresh 
 
 
 ```
 
 Again, ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.7 XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r NN_ADASYN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_xgb_adasyn)
+eval_fnc(cm_nn_adasyn)
 
 ```
 
-##### 3.3.5 Weighted XGBoost
+##### 3.3.5 Weighted NN
 
-```{r XGBoost_weighted, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
-
-
-weight_negative <- (n_negative_train + n_positive_train) / (2 * n_negative_train)
-weight_positive <- (n_negative_train + n_positive_train) / (2 * n_positive_train)
+```{r NN_weighted, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 # Create a vector of weights per row
-row_weights <- ifelse(y_train == 1, model_weights[['positive']], model_weights[['negative']])
-
-
-weighted_xgb <- xgboost(
-  data = x_train,
-  label = y_train,
-  objective = "binary:logistic",
-  nrounds = 100,
-  eval_metric = "auc",
-  weight = row_weights
+NN_weights_start <- list(
+  negative = weight_negative,
+  positive = weight_positive
 )
 
-weighted_xgb_eval <- evaluate_model(weighted_xgb, 
+nn_weighted <- nn_define(input_dim = ncol(x_train))
+
+
+NN_weights <- torch_where(y_train == 1,
+                           torch_tensor(NN_weights_start$positive),
+                           torch_tensor(NN_weights_start$negative))
+
+loss_fn <- function(output, target, weights) {
+  nnf_binary_cross_entropy(output, target, weight = weights)
+}
+
+for (epoch in 1:100) {
+  nn_weighted$train()
+  optimizer$zero_grad()
+  output <- nn_weighted(x_train)
+  loss <- loss_fn(output, y_train, NN_weights)
+  loss$backward()
+  optimizer$step()
+
+  if (epoch %% 10 == 0) {
+    cat(sprintf("Epoch %d, Loss: %.4f\n", epoch, loss$item()))
+  }
+}
+
+
+weighted_nn_eval <- evaluate_model(nn_weighted, 
                data_valid,
                data_test)
 
-cm_weighted_xgb <- weighted_xgb_eval$cm
+cm_weighted_nn <- weighted_nn_eval$cm
 
-best_thresh <- weighted_xgb_eval$best_thresh 
+best_thresh <- weighted_nn_eval$best_thresh 
 
 ```
 
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.6 rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r 3.6 nn_weighted_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_weighted_xgb)
+eval_fnc(cm_weighted_nn)
 
 ```
 
