@@ -150,6 +150,17 @@ cat("\nSpecificity:", round(specificity, 3))
 cat("\nPrecision:   ", round(precision, 3))
 cat("\nF1 Score:   ", round(f1_score, 3), "\n")
 
+
+metrics <- c(
+  Sensitivity = cm$byClass["Sensitivity"],
+  Specificity = cm$byClass["Specificity"],
+  Precision   = cm$byClass["Pos Pred Value"],
+  F1_Score    = cm$byClass["F1"]
+)
+
+return(metrics)
+
+
 }
 
 fontsize <- 8
@@ -336,12 +347,29 @@ train_index <- createDataPartition(data_train_valid$Class, p = 0.7, list = FALSE
 data_train <- data_train_valid[train_index, ]
 data_valid <- data_train_valid[-train_index, ]
 
+
+train_control <- trainControl(method = "cv",
+                              number = 5,
+                              classProbs = TRUE,
+                              summaryFunction = twoClassSummary,
+                              savePredictions = "final")
+
+
 ```
 
 
 **⚖️ Handling Class Imbalance:**  
-All training datasets are augmented using **oversampling techniques** such as **SMOTE**, **ADASYN**, or **SMOTE-ENN** to address the severe class imbalance (positive class ≈1%).  
+All training datasets are augmented using **oversampling techniques** such as **SMOTE**, **ADASYN**, or **SMOTE-ENN** to address the severe class imbalance (positive class ≈ 1%).  
 However, both the **validation** and **test** sets are **not augmented** and retain their original class distributions to reflect real-world scenarios.
+
+In addition to oversampling, we also apply **class weighting** during model training to further mitigate imbalance. The weighting scheme assigns higher penalties to misclassifications of the minority class. The weights are computed inversely proportional to class frequencies, using the formula:
+
+\[
+\text{weight}_{\text{class}} = \frac{n_{\text{total}}}{2 \times n_{\text{class}}}
+\]
+
+where \( n_{\text{class}} \) is the number of observations in a given class, and \( n_{\text{total}} \) is the total number of training samples.
+
 
 **🎯 Model Training & Threshold Selection:**  
 All models are trained to **maximize the F1 score**, which balances precision and recall, making it particularly suitable for highly imbalanced classification tasks. The classification **threshold** is tuned on the **validation set**. This tuned threshold is then applied to the test set for **final evaluation**, which is performed only once.
@@ -374,29 +402,33 @@ ensuring that the model achieves a balance between **precision** and **recall** 
 
 ```{r  GLM_Baseline, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-train_control <- trainControl(method = "cv",
-                              number = 5,
-                              classProbs = TRUE,
-                              summaryFunction = twoClassSummary,
-                              savePredictions = "final")
 
 
-model_baseline <- train(Class ~ .,
+glm_baseline <- train(Class ~ .,
                         data = data_train,
                         method = "glm",
                         trControl = train_control,
                         metric = "ROC")
                         ##"Recall", "Sensitivity", "Specificity"
 
-print(model_baseline)
-predictions_baseline <- predict(model_baseline, newdata = data_test)
+glm_eval <- evaluate_model(glm_baseline, 
+               data_valid,
+               data_test)
 
-table(data_train$Class)
-cm_baseline <- confusionMatrix(predictions_baseline, data_test$Class, positive = "positive")
-eval_fnc(cm_baseline)
+cm_glm <- glm_eval$cm
+
+best_thresh <- glm_eval$best_thresh 
 
 ```
 
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r gl_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+glm_eval <- eval_fnc(cm_glm)
+
+```
 
 
 ##### 3.1.2 GLM + ROS
@@ -432,7 +464,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r glm_ros_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_glm_ros)
+glm_ros_eval <- eval_fnc(cm_glm_ros)
 
 ```
 ___
@@ -472,7 +504,7 @@ glm_smote_eval <- evaluate_model(glm_smote,
 
 cm_glm_smote <- glm_smote_eval$cm
 
-best_thresh <- cm_glm_smote$best_thresh 
+best_thresh <- glm_smote_eval$best_thresh 
 
 ```
 
@@ -481,7 +513,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r glm_SMOTE_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_glm_smote)
+glm_smote_eval <- eval_fnc(cm_glm_smote)
 
 ```
 ___
@@ -544,7 +576,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r glm_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_glm_smote_enn)
+glm_smote_enn_eval <- eval_fnc(cm_glm_smote_enn)
 
 ```
 
@@ -583,7 +615,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r glm_rus_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_rus)
+glm_rus_eval <- eval_fnc(cm_rus)
 
 ```
 
@@ -631,19 +663,53 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r 3.6 rf_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_rf)
+rf_eval <- eval_fnc(cm_rf)
 
 ```
 
 ___
 
+##### 3.2.2 RF + SMOTE
 
-##### 3.2.2 RF + SMOTE-ENN
+```{r rf_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+rf_smote <- train(Class ~ .,
+                     data = data_train_smote,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+rf_smote_eval <- evaluate_model(rf_smote, 
+               data_valid_smote,
+               data_test_smote)
+
+cm_rf_smote <- rf_smote_eval$cm
+
+best_thresh <- rf_smote_eval$best_thresh 
+
+```
+
+
+ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
+
+```{r rf_SMOTE_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+rf_smote_eval <- eval_fnc(cm_rf_smote)
+
+```
+
+
+___
+
+##### 3.2.3 RF + SMOTE-ENN
 
 ```{r rf_SMOTE_ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 rf_smote_enn <- train(Class ~ .,
-                     data = data_train_smote_enn_final,
+                     data = data_train_smote_enn,
                      method = "ranger",
                      trControl = train_control,
                      metric = "ROC",
@@ -655,9 +721,9 @@ rf_smote_enn_eval <- evaluate_model(rf_smote_enn,
                data_valid_smote_enn,
                data_test_smote_enn)
 
-cm_rf_smote_enn <- glm_upsample_smote_enn_eval$cm
+cm_rf_smote_enn <- rf_smote_enn_eval$cm
 
-best_thresh <- glm_upsample_smote_enn_eval$best_thresh 
+best_thresh <- rf_smote_enn_eval$best_thresh 
 
 ```
 
@@ -666,14 +732,14 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r rf_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_rf_smote_enn)
+rf_smote_enn_eval <- eval_fnc(cm_rf_smote_enn)
 
 ```
 
 ___
 
 
-##### 3.2.3 RF + ADASYN
+##### 3.2.4 RF + ADASYN
 
 ```{r rf_ADASYN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
@@ -721,11 +787,11 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r 3.6 rf_adasyn_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_rf_adasyn)
+rf_adasyn_eval <- eval_fnc(cm_rf_adasyn)
 
 ```
 
-##### 3.2.4 Weighted RF
+##### 3.2.5 Weighted RF
 
 ```{r rf_weighted, echo = FALSE, fig.width = 6, fig.height = 6, fig.align = 'center'}
 
@@ -764,7 +830,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r 3.6 rf_weighted_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_weighted_rf)
+rf_weighted_eval <- eval_fnc(cm_weighted_rf)
 
 ```
 
@@ -793,7 +859,8 @@ xgb <- xgboost(
   label = y_train,
   objective = "binary:logistic",
   nrounds = 100,
-  eval_metric = "auc"
+  eval_metric = "auc",
+  verbose = 0  # Suppress output
 )
 
 xgb_eval <- evaluate_model(xgb, 
@@ -811,7 +878,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r XGBoost_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_xgb)
+xgb_eval <- eval_fnc(cm_xgb)
 
 ```
 
@@ -831,7 +898,8 @@ xgb_smote <- xgboost(
   label = y_train_smote,
   objective = "binary:logistic",
   nrounds = 100,
-  eval_metric = "auc"
+  eval_metric = "auc",
+  verbose = 0  # Suppress output
 )
 
 xgb_smote_eval <- evaluate_model(xgb_smote, 
@@ -849,7 +917,7 @@ Again, ROC is used to find an optimal threshold for classification. This time, t
 
 ```{r 3.7 XGBOOST_SMOTE_report , echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_xgb_smote)
+xgb_smote_eval <- eval_fnc(cm_xgb_smote)
 
 ```
 
@@ -866,7 +934,8 @@ xgb_smote_enn <- xgboost(
   label = y_train_smote_enn,
   objective = "binary:logistic",
   nrounds = 100,
-  eval_metric = "auc"
+  eval_metric = "auc",
+  verbose = 0  # Suppress output
 )
 
 xgb_smote_enn_eval <- evaluate_model(xgb_smote_enn, 
@@ -884,7 +953,7 @@ Again, ROC is used to find an optimal threshold for classification. This time, t
 
 ```{r XGBOOST_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_xgb_smote_enn)
+xgb_smote_enn_eval <- eval_fnc(cm_xgb_smote_enn)
 
 ```
 
@@ -902,7 +971,8 @@ xgb_adasyn <- xgboost(
   label = y_train_adasyn,
   objective = "binary:logistic",
   nrounds = 100,
-  eval_metric = "auc"
+  eval_metric = "auc",
+  verbose = 0  # Suppress output
 )
 
 xgb_adasyn_eval <- evaluate_model(xgb_adasyn, 
@@ -920,7 +990,7 @@ Again, ROC is used to find an optimal threshold for classification. This time, t
 
 ```{r XGBOOST_ADASYN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_xgb_adasyn)
+xgb_adasyn_eval <- eval_fnc(cm_xgb_adasyn)
 
 ```
 
@@ -942,7 +1012,8 @@ weighted_xgb <- xgboost(
   objective = "binary:logistic",
   nrounds = 100,
   eval_metric = "auc",
-  weight = row_weights
+  weight = row_weights,
+  verbose = 0  # Suppress output
 )
 
 weighted_xgb_eval <- evaluate_model(weighted_xgb, 
@@ -960,7 +1031,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r 3.6 xgb_weighted_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_weighted_xgb)
+xgb_weighted_eval <- eval_fnc(cm_weighted_xgb)
 
 ```
 
@@ -1038,7 +1109,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r NN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_nn)
+nn_eval <- eval_fnc(cm_nn)
 
 ```
 
@@ -1087,7 +1158,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r NN_SMOTE_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_nn_smote)
+nn_smote_eval <- eval_fnc(cm_nn_smote)
 
 ```
 
@@ -1134,7 +1205,7 @@ ROC is used to find an optimal threshold for classification. This time, the thre
 
 ```{r NN_SMOTE_ENN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_nn_smote_enn)
+nn_smote_enn_eval <- eval_fnc(cm_nn_smote_enn)
 
 ```
 
@@ -1184,7 +1255,7 @@ Again, ROC is used to find an optimal threshold for classification. This time, t
 
 ```{r NN_ADASYN_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_nn_adasyn)
+nn_adasyn_eval <- eval_fnc(cm_nn_adasyn)
 
 ```
 
@@ -1236,9 +1307,535 @@ best_thresh <- weighted_nn_eval$best_thresh
 
 ROC is used to find an optimal threshold for classification. This time, the threshold is `r round(best_thresh,2)`
 
-```{r 3.6 nn_weighted_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r nn_weighted_report, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-eval_fnc(cm_weighted_nn)
+nn_weighted_eval <- eval_fnc(cm_weighted_nn)
 
 ```
+
+
+### 3.5 Model Comparison 📊
+
+In this section, comparison of all four models—**GLM**, **Random Forest**, **XGBoost**, and **Neural Networks**—under six different strategies for handling class imbalance:
+
+- **Baseline** (no adjustment)  
+- **Random Oversampling (ROS)**  
+- **SMOTE**  
+- **SMOTE-ENN**  
+- **Adaptive Synthetic (ADASYN)**  
+- **Class-Sensitive Weighting**
+
+For each combination, we report the **F1 Score**, **Precision**, **Recall**, and **AUC**, evaluated on the test set. Thresholds were tuned on the validation set to maximize **F1 Score**, unless otherwise noted.
+
+```{r comparison, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+results_list <- list(
+  "GLM (Baseline)"     = glm_eval,
+  "GLM (SMOTE)"        = glm_smote_eval,
+  "GLM (SMOTE-ENN)"    = glm_smote_enn_eval,
+  
+  "RF (Baseline)"      = rf_eval,
+  "RF (SMOTE)"         = rf_smote_eval,
+  "RF (SMOTE-ENN)"     = rf_smote_enn_eval,
+  "RF (ADASYN)"        = rf_adasyn_eval,
+  "RF (Weighting)"     = rf_weighted_eval,
+
+  "XGBoost (Baseline)" = xgb_eval,
+  "XGBoost (SMOTE)"    = xgb_smote_eval,
+  "XGBoost (SMOTE-ENN)"= xgb_smote_enn_eval,
+  "XGBoost (ADASYN)"   = xgb_adasyn_eval,
+  "XGBoost (Weighting)"= xgb_weighted_eval,
+  
+  "NN (Baseline)"      = nn_eval,
+  "NN (SMOTE)"         = nn_smote_eval ,
+  "NN (SMOTE-ENN)"     = nn_smote_enn_eval,
+  "NN (ADASYN)"        = nn_adasyn_eval,
+  "NN (Weighting)"     = nn_weighted_eval
+)
+
+comparison_table <- data.frame(do.call(rbind, results_list))
+
+comparison_table <- comparison_table %>%
+  rename(
+    Sensitivity = `Sensitivity.Sensitivity`,
+    Specificity = `Specificity.Specificity`,
+    Precision = `Precision.Pos.Pred.Value`,
+    F1_Score = `F1_Score.F1`
+  )
+comparison_table <- comparison_table %>%
+  arrange(desc(F1_Score))
+
+# Step 2: Identify the maximum F1 value
+max_f1 <- round(quantile(comparison_table$F1_Score, probs = 0.75, na.rm = TRUE), 3)
+max_sensitivity <- round(quantile(comparison_table$Sensitivity, probs = 0.75,na.rm = TRUE), 3)
+max_specifity<- round(quantile(comparison_table$Specificity, probs = 0.75,na.rm = TRUE), 3)
+max_precision<- round(quantile(comparison_table$Precision, probs = 0.75,na.rm = TRUE), 3)
+
+
+# 3. Display the comparison table using kable for a clean format 📊
+comparison_table %>%
+  mutate(
+    F1_Score = round(F1_Score, 3),  # Round first
+    F1_Score = ifelse(
+      F1_Score >= max_f1,
+      cell_spec(F1_Score, background = "#90EE90", bold = TRUE),  # Light green highlight
+      as.character(F1_Score)
+    )
+  ) %>%
+    mutate(
+    Sensitivity = round(Sensitivity, 3),  # Round first
+    Sensitivity = ifelse(
+      Sensitivity >= max_sensitivity,
+      cell_spec(Sensitivity, background = "#90EE90", bold = TRUE),  # Light green highlight
+      as.character(Sensitivity)
+    )
+  ) %>%
+    mutate(
+    Specificity = round(Specificity, 3),  # Round first
+    Specificity = ifelse(
+      Specificity >= max_specifity,
+      cell_spec(Specificity, background = "#90EE90", bold = TRUE),  # Light green highlight
+      as.character(Specificity)
+    )
+  ) %>%
+  mutate(
+    Precision = round(Precision, 3),  # Round first
+    Precision = ifelse(
+      Precision >= max_precision,
+      cell_spec(Precision, background = "#90EE90", bold = TRUE),  # Light green highlight
+      as.character(Precision)
+    )
+  ) %>%
+  knitr::kable(
+    caption = "Model Performance Comparison",
+    format = "html",
+    escape = FALSE,  # Required for cell_spec HTML rendering
+    digits = 3
+  ) %>%
+  kable_styling(
+    bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+    full_width = FALSE,
+    position = "center"
+  ) %>%
+  row_spec(0, bold = TRUE, background = "#D3D3D3") %>%
+  footnote(
+    general = "Performance metrics for various classification models- those above 75% quantile are highlighted green"
+  )
+```
+
+### 3.6 Improving the Best Model 🚀
+
+Section 3.5 showed that the Random Forest model with class weighting achieved the best performance compared to other models. Building on that, I am experimenting with different weighting schemes to see if further improvements are possible.
+
+So far, I have been using the following weighting scheme:
+
+\[
+\text{weight}_{\text{class}} = \frac{n_{\text{total}}}{2 \times n_{\text{class}}}
+\]
+
+where:  
+- \( n_{\text{class}} \) is the number of samples in the given class  
+- \( n_{\text{total}} \) is the total number of samples in the training data
+
+Now, I am testing alternative weighting strategies such as:
+
+1. Adjusting the denominator to values other than 2
+\[
+\text{weight}_{\text{class}} = \frac{n_{\text{total}}}{r \times n_{\text{class}}}
+\]
+
+2. Applying a direct inverse frequency weighting:  
+  \[
+  \text{weight}_{\text{class}} = \frac{1}{n_{\text{class}}}
+  \]
+3. Applying Weighted Cross-Entropy (WCE)
+
+  \[
+  \text{weight}_{\text{major}} = w \cdot \log(p_{major})
+  \text{weight}_{\text{minor}} = \log(1 - p_{major})
+  \]
+
+- \( w \): Class weight applied to the positive class to increase its importance
+- \( p \): Model-predicted probability of the positive class
+
+4. Applying Focal Loss 
+  \[
+  \text{weight}_{\text{major}} = (1-p)^{\gamma} \log(p)
+  \text{weight}_{\text{minor}} = p^{\gamma} \log(1-p)
+  \]
+
+
+Additionally, I am combining these weighting schemes with advanced resampling techniques such as **SMOTE** (Synthetic Minority Over-sampling Technique) and **SMOTE-ENN** (a hybrid of SMOTE and Edited Nearest Neighbors) to further balance the dataset and improve model generalization.
+
+These combined approaches aim to increase the model’s ability to correctly classify the minority class without sacrificing overall accuracy.
+
+
+##### 3.6.1 Adjusting Weighting Scale (r)
+\[
+\text{weight}_{\text{class}} = \frac{n_{\text{total}}}{r \times n_{\text{class}}}
+\]
+  
+```{r rf_weighting_1 , echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+ratio_to_try <- c(0.5, 1.0, 1.5, 2.0, 3.0) # Example ratios relative to the inverse frequency
+
+for (r in ratio_to_try) {
+  model_weights <- c(
+    negative = (n_negative_train + n_positive_train) / (r * n_negative_train),
+    positive =  (n_negative_train + n_positive_train) / (r * n_positive_train)
+  )
+
+weighted_rf <- train(Class ~ .,
+                     data = data_train,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights,
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+weighted_rf_eval <- evaluate_model(weighted_rf, 
+               data_valid,
+               data_test)
+
+cm_weighted_rf <- weighted_rf_eval$cm
+
+best_thresh <- weighted_rf_eval$best_thresh 
+
+rf_weighted_eval <- eval_fnc(cm_weighted_rf)
+
+var_name <- paste0("rf_weighted_eval_ratio_", r)
+assign(var_name, rf_weighted_eval)
+}
+
+
+```
+
+
+##### 3.6.2 Direct Inverse Frequency Weighting
+  \[
+  \text{weight}_{\text{class}} = \frac{1}{n_{\text{class}}}
+  \]
+  
+```{r rf_weighting_2 , echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+
+model_weights_inverse <- c(
+  negative = (1 / n_negative_train) ,
+  positive = (1 / n_positive_train)
+)
+
+weighted_rf_inverse <- train(Class ~ .,
+                     data = data_train,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights_inverse,
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+weighted_rf_eval_inverse <- evaluate_model(weighted_rf_inverse, 
+               data_valid,
+               data_test)
+
+cm_weighted_rf_inverse <- weighted_rf_eval_inverse$cm
+
+rf_weighted_eval_weight_inverse <- eval_fnc(cm_weighted_rf_inverse)
+
+```
+
+##### 3.6.3  Weighted Cross-Entropy (WCE) with Different Ratios
+
+
+  \[
+  \text{weight}_{\text{major}} = - w \cdot \log(p_{major}) \\
+  \text{weight}_{\text{minor}} = - \log(1 - p_{major})
+  \]
+
+```{r rf_weighting_WCE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+n_total_train <- n_negative_train + n_positive_train
+
+p_positive <- n_positive_train / n_total_train
+p_negative <- n_negative_train / n_total_train
+
+
+for (w in c(0.5, 1, 1.5, 2, 3, 4)) {
+
+model_weights_WCE <- c(
+  negative = - w * log(p_negative),
+  positive = - log(1 - p_negative)  # log(1 - p_major)
+)
+
+weighted_rf_WCE <- train(Class ~ .,
+                     data = data_train,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights_WCE,
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+
+weighted_rf_eval_WCE <- evaluate_model(weighted_rf_WCE, 
+               data_valid,
+               data_test)
+
+
+
+
+cm_weighted_rf_WCE <- weighted_rf_eval_WCE$cm
+
+rf_weighted_eval <- eval_fnc(cm_weighted_rf_WCE)
+
+var_name <- paste0("rf_weighted_eval_ratio_WCE_", w)
+assign(var_name, rf_weighted_eval)
+}
+
+
+
+
+
+```
+
+
+##### 3.6.4  Focal Loss with Different Ratios
+
+  \[
+  \text{weight}_{\text{major}} = (1-p)^{\gamma} \log(p) \\
+  \text{weight}_{\text{minor}} = p^{\gamma} \log(1-p)
+  \]
+  
+  
+```{r rf_weighting_FL_changing_gamma , echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+
+gamma <- c(0.5, 1.0, 1.5, 2.0, 3.0, 4.0) # Example ratios relative to the inverse frequency
+
+for (g in gamma) {
+w_major <- (1 - p_negative)^g * log(p_negative)
+w_minor <- (p_negative)^g * log(1 - p_negative)
+
+model_weights <- c(
+  negative = abs(w_major),
+  positive = abs(w_minor)
+)
+
+
+weighted_rf <- train(Class ~ .,
+                     data = data_train,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights,
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+weighted_rf_eval <- evaluate_model(weighted_rf, 
+               data_valid,
+               data_test)
+
+
+cm_weighted_rf <- weighted_rf_eval$cm
+
+best_thresh <- weighted_rf_eval$best_thresh 
+
+rf_weighted_eval <- eval_fnc(cm_weighted_rf)
+
+var_name <- paste0("rf_weighted_eval_ratio_FL_", g)
+assign(var_name, rf_weighted_eval)
+}
+
+
+
+
+```
+
+
+##### 3.6.5 Comparing Weighting Schems
+
+```{r compare_weights, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+rf_weighted_eval_df <- data.frame(
+  Weighting = c("r = 0.5", "r = 1", "r = 1.5", "r = 2", "r = 3", 
+                "Inverse Frequency",
+                "WCE - Weights = 0.5", "WCE - Weights = 1", "WCE - Weights = 1.5",
+                "WCE - Weights = 2", "WCE - Weights = 3", "WCE - Weights = 4",
+                "FL - Gamma = 0.5", "FL - Gamma = 1", "FL - Gammma = 1.5",
+                "FL - Gamma = 2", "FL - Gamma = 3", "FL - Gamma = 4"),
+  Sensitivity = c(
+    rf_weighted_eval_ratio_0.5["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_1["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_1.5["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_2["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_3["Sensitivity.Sensitivity"],
+    rf_weighted_eval_weight_inverse["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_WCE_0.5["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_WCE_1["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_WCE_1.5["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_WCE_2["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_WCE_3["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_WCE_4["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_FL_0.5["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_FL_1["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_FL_1.5["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_FL_2["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_FL_3["Sensitivity.Sensitivity"],
+    rf_weighted_eval_ratio_FL_4["Sensitivity.Sensitivity"]
+
+  ),
+  Specificity = c(
+    rf_weighted_eval_ratio_0.5["Specificity.Specificity"],
+    rf_weighted_eval_ratio_1["Specificity.Specificity"],
+    rf_weighted_eval_ratio_1.5["Specificity.Specificity"],
+    rf_weighted_eval_ratio_2["Specificity.Specificity"],
+    rf_weighted_eval_ratio_3["Specificity.Specificity"],
+    rf_weighted_eval_weight_inverse["Specificity.Specificity"],
+    rf_weighted_eval_ratio_WCE_0.5["Specificity.Specificity"],
+    rf_weighted_eval_ratio_WCE_1["Specificity.Specificity"],
+    rf_weighted_eval_ratio_WCE_1.5["Specificity.Specificity"],
+    rf_weighted_eval_ratio_WCE_2["Specificity.Specificity"],
+    rf_weighted_eval_ratio_WCE_3["Specificity.Specificity"],
+    rf_weighted_eval_ratio_WCE_4["Specificity.Specificity"],
+    rf_weighted_eval_ratio_FL_0.5["Specificity.Specificity"],
+    rf_weighted_eval_ratio_FL_1["Specificity.Specificity"],
+    rf_weighted_eval_ratio_FL_1.5["Specificity.Specificity"],
+    rf_weighted_eval_ratio_FL_2["Specificity.Specificity"],
+    rf_weighted_eval_ratio_FL_3["Specificity.Specificity"],
+    rf_weighted_eval_ratio_FL_4["Specificity.Specificity"]
+  ),
+  Precision = c(
+    rf_weighted_eval_ratio_0.5["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_1["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_1.5["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_2["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_3["Precision.Pos Pred Value"],
+    rf_weighted_eval_weight_inverse["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_WCE_0.5["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_WCE_1["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_WCE_1.5["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_WCE_2["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_WCE_3["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_WCE_4["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_FL_0.5["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_FL_1["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_FL_1.5["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_FL_2["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_FL_3["Precision.Pos Pred Value"],
+    rf_weighted_eval_ratio_FL_4["Precision.Pos Pred Value"]
+  ),
+  F1_Score = c(
+    rf_weighted_eval_ratio_0.5["F1_Score.F1"],
+    rf_weighted_eval_ratio_1["F1_Score.F1"],
+    rf_weighted_eval_ratio_1.5["F1_Score.F1"],
+    rf_weighted_eval_ratio_2["F1_Score.F1"],
+    rf_weighted_eval_ratio_3["F1_Score.F1"],
+    rf_weighted_eval_weight_inverse["F1_Score.F1"],
+    rf_weighted_eval_ratio_WCE_0.5["F1_Score.F1"],
+    rf_weighted_eval_ratio_WCE_1["F1_Score.F1"],
+    rf_weighted_eval_ratio_WCE_1.5["F1_Score.F1"],
+    rf_weighted_eval_ratio_WCE_2["F1_Score.F1"],
+    rf_weighted_eval_ratio_WCE_3["F1_Score.F1"],
+    rf_weighted_eval_ratio_WCE_4["F1_Score.F1"],
+    rf_weighted_eval_ratio_FL_0.5["F1_Score.F1"],
+    rf_weighted_eval_ratio_FL_1["F1_Score.F1"],
+    rf_weighted_eval_ratio_FL_1.5["F1_Score.F1"],
+    rf_weighted_eval_ratio_FL_2["F1_Score.F1"],
+    rf_weighted_eval_ratio_FL_3["F1_Score.F1"],
+    rf_weighted_eval_ratio_FL_4["F1_Score.F1"]
+  )
+)
+
+best_f1_index <- which.max(rf_weighted_eval_df$F1_Score)
+
+# Generate the table with row highlight
+kable(rf_weighted_eval_df, digits = 4, caption = "Performance Across Different Weighting Schema") %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed")) %>%
+  row_spec(best_f1_index, background = "#90EE90")
+
+
+```
+
+##### 3.6.6 RF + WCE + SMOTE
+
+After evaluating multiple class imbalance handling strategies, it is now clear that Weighted Cross-Entropy (WCE) performs best in this context. WCE adjusts the loss function by assigning more importance to the minority class, helping the model focus on harder-to-classify examples and address class imbalance effectively.
+
+Building on this, the next step is to combine WCE with sampling techniques to further enhance performance. Specifically, we will integrate WCE with:
+
+SMOTE (Synthetic Minority Oversampling Technique): which generates synthetic samples for the minority class to balance the dataset.
+
+SMOTE-ENN (SMOTE + Edited Nearest Neighbors): which combines oversampling with data cleaning by removing ambiguous and noisy samples using nearest neighbors.
+
+This hybrid approach aims to leverage both algorithm-level (WCE) and data-level (SMOTE/SMOTE-ENN) methods to improve predictive accuracy—especially for the minority class.
+
+We will implement and evaluate the following combinations:
+
+Weighted Cross-Entropy (weight = 1) + SMOTE
+
+Weighted Cross-Entropy (weight = 1) + SMOTE-ENN
+
+The models will be compared using performance metrics such as F1-score, precision, recall, and AUC on validation and test datasets.
+
+
+```{r rf_weighting_WCE_SMOTE, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+w <- 1
+
+model_weights_WCE <- c(
+  negative = - w * log(p_negative),
+  positive = - log(1 - p_negative)  # log(1 - p_major)
+)
+
+
+
+weighted_rf_WCE_smote <- train(Class ~ .,
+                     data = data_train_smote,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights_WCE,
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+
+weighted_rf_eval_WCE_smote <- evaluate_model(weighted_rf_WCE_smote, 
+               data_valid_smote,
+               data_test_smote)
+
+cm_weighted_rf_WCE_smote  <- weighted_rf_eval_WCE_smote$cm
+
+rf_weighted_eval_WCE_smote <- eval_fnc(cm_weighted_rf_WCE_smote)
+
+```
+
+##### 3.6.7 RF + FL + SMOTE-ENN
+
+```{r rf_weighting_WCE_SMOTE-ENN, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+weighted_rf_WCE_smote_enn <- train(Class ~ .,
+                     data = data_train_smote_enn,
+                     method = "ranger",
+                     trControl = train_control,
+                     metric = "ROC",
+                     class.weights = model_weights_WCE,
+                     num.trees = 100, ## Default is 500
+                     importance = 'permutation'
+                    )
+
+
+weighted_rf_eval_WCE_smote_enn <- evaluate_model(weighted_rf_WCE_smote_enn, 
+               data_valid_smote_enn ,
+               data_test_smote_enn)
+
+cm_weighted_rf_WCE  <- weighted_rf_eval_WCE_smote_enn$cm
+
+rf_weighted_eval_WCE_smote_enn <- eval_fnc(cm_weighted_rf_WCE)
+
+```
+
 
