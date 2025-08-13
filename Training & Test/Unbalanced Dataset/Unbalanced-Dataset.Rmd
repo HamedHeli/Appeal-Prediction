@@ -805,7 +805,7 @@ model_weights <- c(
 
 
 # Weighted Random Forest
-weighted_rf <- train(Class ~ .,
+weighted_rf_default <- train(Class ~ .,
                      data = data_train,
                      method = "ranger",
                      trControl = train_control,
@@ -815,7 +815,7 @@ weighted_rf <- train(Class ~ .,
                      importance = 'permutation'
                     )
 
-weighted_rf_eval <- evaluate_model(weighted_rf, 
+weighted_rf_eval <- evaluate_model(weighted_rf_default, 
                data_valid,
                data_test)
 
@@ -1838,4 +1838,88 @@ rf_weighted_eval_WCE_smote_enn <- eval_fnc(cm_weighted_rf_WCE)
 
 ```
 
+### 3.7 Quantification 
 
+Since the evaluation score was low, I am now using quantification methods using two approaches for our best model so far, weighted random forest, and our mose baseline model. 
+
+*Probabilistic Classify & Count (PCC): adding the predicted probabilities.
+
+*Adjusted Classify & Count (ACC): Using classifier's known error rates (calculated from a training set) to correct the raw prediction counts from a test set.
+
+#### 3.7.1 PCC (Weighted RF)
+
+```{r quantification(1), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+PCC <- round(sum(predict(weighted_rf_default, 
+        newdata = data_test, type = "prob")[, "positive"]))
+
+actual_count <- sum(data_test$Class == 'positive')
+
+```
+Actual Prevalence in Test Set is `r actual_count` and the predicted PCC from weighted RF is `r PCC`.
+
+
+#### 3.7.2 ACC (Weighted RF)
+
+```{r quantification(2), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+cm_weighted_rf_training_tbl <- evaluate_model(weighted_rf_default, 
+               data_valid,
+               data_train)$cm$table
+
+TP <- cm_weighted_rf_training_tbl[2, 2] # Predicted: Positive, Actual: Positive
+FP <- cm_weighted_rf_training_tbl[2, 1] # Predicted: Positive, Actual: Negative
+TN <- cm_weighted_rf_training_tbl[1, 1] # Predicted: Negative, Actual: Negative
+FN <- cm_weighted_rf_training_tbl[1, 2] # Predicted: Negative, Actual: Positive
+
+tpr <- TP / (TP + FN)
+fpr <- FP / (FP + TN)
+
+ACC <- round(
+  (sum(predict(weighted_rf_default, 
+        newdata = data_test, type = "prob")[, "positive"]) - fpr) / (tpr - fpr)
+  )
+
+
+```
+
+Actual Prevalence in Test Set is `r actual_count` and the predicted ACC from weighted RF is `r ACC`.
+
+
+#### 3.7.3 PCC (Baseline GLM)
+
+```{r quantification(1), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+PCC <- round(sum(predict(glm_baseline, 
+        newdata = data_test, type = "prob")[, "positive"]))
+
+actual_count <- sum(data_test$Class == 'positive')
+
+```
+Actual Prevalence in Test Set for is `r actual_count` and the predicted PCC from GLM Baseline is `r PCC`.
+
+
+#### 3.7.4 ACC (Baseline GLM)
+
+```{r quantification(2), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+
+cm_glm_training_tbl <- evaluate_model(glm_baseline, 
+               data_valid,
+               data_train)$cm$table
+
+TP <- cm_glm_training_tbl[2, 2] # Predicted: Positive, Actual: Positive
+FP <- cm_glm_training_tbl[2, 1] # Predicted: Positive, Actual: Negative
+TN <- cm_glm_training_tbl[1, 1] # Predicted: Negative, Actual: Negative
+FN <- cm_glm_training_tbl[1, 2] # Predicted: Negative, Actual: Positive
+
+tpr <- TP / (TP + FN)
+fpr <- FP / (FP + TN)
+
+ACC <- round(
+  (sum(predict(glm_baseline, 
+        newdata = data_test, type = "prob")[, "positive"]) - fpr) / (tpr - fpr)
+  )
+
+```
+
+Actual Prevalence in Test Set for is `r actual_count` and the predicted ACC from GLM Baseline is `r ACC`.
