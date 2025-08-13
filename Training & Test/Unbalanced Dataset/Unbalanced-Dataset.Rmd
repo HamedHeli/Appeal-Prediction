@@ -1848,7 +1848,7 @@ Since the evaluation score was low, I am now using quantification methods using 
 
 #### 3.7.1 PCC (Weighted RF)
 
-```{r quantification(1), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r quantification(1)_WRF, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 PCC <- round(sum(predict(weighted_rf_default, 
         newdata = data_test, type = "prob")[, "positive"]))
@@ -1861,7 +1861,7 @@ Actual Prevalence in Test Set is `r actual_count` and the predicted PCC from wei
 
 #### 3.7.2 ACC (Weighted RF)
 
-```{r quantification(2), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r quantification(2)_WRF, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 cm_weighted_rf_training_tbl <- evaluate_model(weighted_rf_default, 
                data_valid,
@@ -1888,7 +1888,7 @@ Actual Prevalence in Test Set is `r actual_count` and the predicted ACC from wei
 
 #### 3.7.3 PCC (Baseline GLM)
 
-```{r quantification(1), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r quantification(1)_GLM, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 PCC <- round(sum(predict(glm_baseline, 
         newdata = data_test, type = "prob")[, "positive"]))
@@ -1901,7 +1901,7 @@ Actual Prevalence in Test Set for is `r actual_count` and the predicted PCC from
 
 #### 3.7.4 ACC (Baseline GLM)
 
-```{r quantification(2), echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+```{r quantification(2)_GLM, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
 cm_glm_training_tbl <- evaluate_model(glm_baseline, 
                data_valid,
