@@ -1840,7 +1840,7 @@ rf_weighted_eval_WCE_smote_enn <- eval_fnc(cm_weighted_rf_WCE)
 
 ### 3.7 Quantification 
 
-Since the evaluation score was low, I am now using quantification methods using two approaches for our best model so far, weighted random forest, and our mose baseline model. 
+Since the evaluation score was low, I am now using quantification methods using two approaches for our best model so far, weighted random forest with different weights, and our baseline model. 
 
 *Probabilistic Classify & Count (PCC): adding the predicted probabilities.
 
@@ -1850,40 +1850,193 @@ Since the evaluation score was low, I am now using quantification methods using 
 
 ```{r quantification(1)_WRF, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
 
-PCC <- round(sum(predict(weighted_rf_default, 
-        newdata = data_test, type = "prob")[, "positive"]))
+ratio_to_try <- c(0.5, 1.0, 1.5, 2.0, 3.0) # Example ratios relative to the inverse frequency
+boots <- seq(1:100)
 
+R <- length(ratio_to_try)
+B <- length(boots)
+
+# PCC <- matrix(NA_real_, nrow = R, ncol = B,
+#                     dimnames = list(r = 1:R, b = 1:B))
+# 
+# for (bb in seq_len(B)){
+#   print(bb)
+# for (rr in seq_len(R)){
+#   r <- ratio_to_try[[rr]]
+#   model_weights <- c(
+#     negative = (n_negative_train + n_positive_train) / (r * n_negative_train),
+#     positive =  (n_negative_train + n_positive_train) / (r * n_positive_train)
+#   )
+# 
+# weighted_rf <- train(Class ~ .,
+#                      data = data_train,
+#                      method = "ranger",
+#                      trControl = train_control,
+#                      metric = "ROC",
+#                      class.weights = model_weights,
+#                      num.trees = 100, ## Default is 500
+#                      importance = 'permutation'
+#                     )
+# 
+# PCC[rr,bb] <- round(sum(predict(weighted_rf, 
+#         newdata = data_test, type = "prob")[, "positive"]))
+# }
+# }
 actual_count <- sum(data_test$Class == 'positive')
+# 
+# saveRDS(PCC, 'PCC.rds')
+
+PCC <- read_rds('PCC.rds')
+
+
+# Make sure row names reflect the actual ratios you used
+rownames(PCC) <- as.character(ratio_to_try)
+colnames(PCC) <- paste0("boot_", boots)
+
+# Long table of all results
+df_pcc <- data.frame(
+  ratio = rep(ratio_to_try, times = ncol(PCC)),
+  boot  = rep(boots, each = nrow(PCC)),
+  PCC   = as.vector(PCC)
+)
+
+# Summaries per ratio (percentile bootstrap CI)
+sum_pcc <- df_pcc %>%
+  group_by(ratio) %>%
+  summarize(
+    median = median(PCC, na.rm = TRUE),
+    lwr    = quantile(PCC, 0.025, na.rm = TRUE),
+    upr    = quantile(PCC, 0.975, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(`95% CI` = sprintf("[%.0f, %.0f]", lwr, upr)) %>%
+  select(ratio, median, `95% CI`) %>%
+  arrange(ratio)
+
+# Pretty table with kableExtra
+sum_pcc %>%
+  kbl(
+    digits = 3,
+    align = "c",
+    col.names = c("Weight ratio r", "Median PCC", "95% CI (bootstrap)")
+  ) %>%
+  kable_paper(full_width = FALSE) %>%
+  add_header_above(c(" " = 1, "PCC summary across bootstraps" = 2))
+
 
 ```
-Actual Prevalence in Test Set is `r actual_count` and the predicted PCC from weighted RF is `r PCC`.
+Actual Prevalence in Test Set is `r actual_count`.
 
 
 #### 3.7.2 ACC (Weighted RF)
 
 ```{r quantification(2)_WRF, echo = FALSE, warning=FALSE, message=FALSE, error=FALSE}
+gc()
+ratio_to_try <- c(0.5, 1.0, 1.5, 2.0, 3.0) # Example ratios relative to the inverse frequency
+boots <- seq(1:100)
 
-cm_weighted_rf_training_tbl <- evaluate_model(weighted_rf_default, 
-               data_valid,
-               data_train)$cm$table
+R <- length(ratio_to_try)
+B <- length(boots)
 
-TP <- cm_weighted_rf_training_tbl[2, 2] # Predicted: Positive, Actual: Positive
-FP <- cm_weighted_rf_training_tbl[2, 1] # Predicted: Positive, Actual: Negative
-TN <- cm_weighted_rf_training_tbl[1, 1] # Predicted: Negative, Actual: Negative
-FN <- cm_weighted_rf_training_tbl[1, 2] # Predicted: Negative, Actual: Positive
+# ACC <- matrix(NA_real_, nrow = R, ncol = B,
+#                     dimnames = list(r = 1:R, b = 1:B))
+# 
+# for (bb in seq_len(B)){
+#   print(bb)
+# for (rr in seq_len(R)){
+#   r <- ratio_to_try[[rr]]
+#   model_weights <- c(
+#     negative = (n_negative_train + n_positive_train) / (r * n_negative_train),
+#     positive =  (n_negative_train + n_positive_train) / (r * n_positive_train)
+#   )
+# 
+# weighted_rf <- train(Class ~ .,
+#                      data = data_train,
+#                      method = "ranger",
+#                      trControl = train_control,
+#                      metric = "ROC",
+#                      class.weights = model_weights,
+#                      num.trees = 100, ## Default is 500
+#                      importance = 'permutation'
+#                     )
+# 
+# 
+# cm_weighted_rf_training_tbl <- evaluate_model(weighted_rf,
+#                data_valid,
+#                data_train)$cm$table
+# 
+# TP <- cm_weighted_rf_training_tbl[2, 2] # Predicted: Positive, Actual: Positive
+# FP <- cm_weighted_rf_training_tbl[2, 1] # Predicted: Positive, Actual: Negative
+# TN <- cm_weighted_rf_training_tbl[1, 1] # Predicted: Negative, Actual: Negative
+# FN <- cm_weighted_rf_training_tbl[1, 2] # Predicted: Negative, Actual: Positive
+# 
+# tpr <- TP / (TP + FN)
+# fpr <- FP / (FP + TN)
+# 
+# ACC[rr,bb] <- round(
+#   (sum(predict(weighted_rf_default,
+#         newdata = data_test, type = "prob")[, "positive"]) - fpr) / (tpr - fpr)
+#   )
+# }
+# }
+# saveRDS(ACC, 'ACC.rds')
+# saveRDS(ACC_extra, 'ACC_extra.rds')
 
-tpr <- TP / (TP + FN)
-fpr <- FP / (FP + TN)
+actual_count <- sum(data_test$Class == 'positive')
 
-ACC <- round(
-  (sum(predict(weighted_rf_default, 
-        newdata = data_test, type = "prob")[, "positive"]) - fpr) / (tpr - fpr)
-  )
+ACC <- read_rds('ACC.rds')
+rownames(ACC) <- as.character(ratio_to_try)
+colnames(ACC) <- paste0("boot_", boots)
+
+ACC_extra <- read_rds('ACC_extra.rds')
+rownames(ACC_extra) <- as.character(ratio_to_try)
+colnames(ACC_extra) <- paste0("boot_", boots)
+
+
+# Long table of all results
+df_ACC <- data.frame(
+  ratio = rep(ratio_to_try, times = ncol(ACC)),
+  boot  = rep(boots, each = nrow(ACC)),
+  ACC   = as.vector(ACC)
+)
+
+df_ACC_extra <- data.frame(
+  ratio = rep(ratio_to_try, times = ncol(ACC_extra)),
+  boot  = rep(boots, each = nrow(ACC_extra)),
+  ACC   = as.vector(ACC_extra)
+)
+
+
+
+# Summaries per ratio (percentile bootstrap CI)
+sum_ACC <- rbind(df_ACC,df_ACC_extra) %>%
+  drop_na()%>%
+  group_by(ratio) %>%
+  summarize(
+    median = median(ACC, na.rm = TRUE),
+    lwr    = quantile(ACC, 0.025, na.rm = TRUE),
+    upr    = quantile(ACC, 0.975, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(`95% CI` = sprintf("[%.0f, %.0f]", lwr, upr)) %>%
+  select(ratio, median, `95% CI`) %>%
+  arrange(ratio)
+
+# Pretty table with kableExtra
+sum_ACC %>%
+  kbl(
+    digits = 3,
+    align = "c",
+    col.names = c("Weight ratio r", "Median ACC", "95% CI (bootstrap)")
+  ) %>%
+  kable_paper(full_width = FALSE) %>%
+  add_header_above(c(" " = 1, "ACC summary across bootstraps" = 2))
+
 
 
 ```
 
-Actual Prevalence in Test Set is `r actual_count` and the predicted ACC from weighted RF is `r ACC`.
+Actual Prevalence in Test Set is `r actual_count`.
 
 
 #### 3.7.3 PCC (Baseline GLM)
