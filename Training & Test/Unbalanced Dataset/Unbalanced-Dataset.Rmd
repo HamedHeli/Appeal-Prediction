@@ -1913,7 +1913,70 @@ sum_pcc <- df_pcc %>%
   select(ratio, median, `95% CI`) %>%
   arrange(ratio)
 
-# Pretty table with kableExtra
+
+n_total_train <- n_negative_train + n_positive_train
+
+p_positive <- n_positive_train / n_total_train
+p_negative <- n_negative_train / n_total_train
+
+wce <- c(0.5, 1, 1.5, 2, 3, 4)
+W <- length(wce)
+
+# PCC_wce <- matrix(NA_real_, nrow = W, ncol = B,
+#                     dimnames = list(w = 1:W, b = 1:B))
+# 
+# for (bb in seq_len(B)){
+#   print(bb)
+# for (ww in seq_len(W)){
+# 
+# w <- wce[[ww]]
+# 
+# model_weights_WCE <- c(
+#   negative = - w * log(p_negative),
+#   positive = - log(1 - p_negative)  # log(1 - p_major)
+# )
+# 
+# weighted_rf_WCE <- train(Class ~ .,
+#                      data = data_train,
+#                      method = "ranger",
+#                      trControl = train_control,
+#                      metric = "ROC",
+#                      class.weights = model_weights_WCE,
+#                      num.trees = 100, ## Default is 500
+#                      importance = 'permutation'
+#                     )
+# 
+# PCC_wce[ww,bb] <- round(sum(predict(weighted_rf_WCE,
+#         newdata = data_test, type = "prob")[, "positive"]))
+# }}
+# 
+# saveRDS(PCC_wce, 'PCC_wce.rds')
+PCC_wce <- read_rds('PCC_wce.rds')
+
+rownames(PCC_wce) <- as.character(wce)
+colnames(PCC_wce) <- paste0("boot_", boots)
+
+# Long table of all results
+df_pcc <- data.frame(
+  weights = rep(wce, times = ncol(PCC_wce)),
+  boot  = rep(boots, each = nrow(PCC_wce)),
+  PCC_wce   = as.vector(PCC_wce)
+)
+
+# Summaries per ratio (percentile bootstrap CI)
+sum_pcc_wce <- df_pcc %>%
+  group_by(weights) %>%
+  summarize(
+    median = median(PCC_wce, na.rm = TRUE),
+    lwr    = quantile(PCC_wce, 0.025, na.rm = TRUE),
+    upr    = quantile(PCC_wce, 0.975, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(`95% CI` = sprintf("[%.0f, %.0f]", lwr, upr)) %>%
+  select(weights, median, `95% CI`) %>%
+  arrange(weights)
+
+
 sum_pcc %>%
   kbl(
     digits = 3,
@@ -1921,7 +1984,17 @@ sum_pcc %>%
     col.names = c("Weight ratio r", "Median PCC", "95% CI (bootstrap)")
   ) %>%
   kable_paper(full_width = FALSE) %>%
-  add_header_above(c(" " = 1, "PCC summary across bootstraps" = 2))
+  add_header_above(c(" " = 1, "PCC summary across bootstraps - Adjusting R" = 2))
+
+
+sum_pcc_wce %>%
+  kbl(
+    digits = 3,
+    align = "c",
+    col.names = c("Weight ratio w", "Median PCC", "95% CI (bootstrap)")
+  ) %>%
+  kable_paper(full_width = FALSE) %>%
+  add_header_above(c(" " = 1, "PCC summary across bootstraps - WCE Adjusting W" = 2))
 
 
 ```
@@ -1940,7 +2013,7 @@ B <- length(boots)
 
 # ACC <- matrix(NA_real_, nrow = R, ncol = B,
 #                     dimnames = list(r = 1:R, b = 1:B))
-# 
+
 # for (bb in seq_len(B)){
 #   print(bb)
 # for (rr in seq_len(R)){
@@ -1988,11 +2061,6 @@ ACC <- read_rds('ACC.rds')
 rownames(ACC) <- as.character(ratio_to_try)
 colnames(ACC) <- paste0("boot_", boots)
 
-ACC_extra <- read_rds('ACC_extra.rds')
-rownames(ACC_extra) <- as.character(ratio_to_try)
-colnames(ACC_extra) <- paste0("boot_", boots)
-
-
 # Long table of all results
 df_ACC <- data.frame(
   ratio = rep(ratio_to_try, times = ncol(ACC)),
@@ -2000,16 +2068,9 @@ df_ACC <- data.frame(
   ACC   = as.vector(ACC)
 )
 
-df_ACC_extra <- data.frame(
-  ratio = rep(ratio_to_try, times = ncol(ACC_extra)),
-  boot  = rep(boots, each = nrow(ACC_extra)),
-  ACC   = as.vector(ACC_extra)
-)
-
-
 
 # Summaries per ratio (percentile bootstrap CI)
-sum_ACC <- rbind(df_ACC,df_ACC_extra) %>%
+sum_ACC <- rbind(df_ACC) %>%
   drop_na()%>%
   group_by(ratio) %>%
   summarize(
