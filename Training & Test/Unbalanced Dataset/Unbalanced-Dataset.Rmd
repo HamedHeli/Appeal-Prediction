@@ -2083,7 +2083,89 @@ sum_ACC <- rbind(df_ACC) %>%
   select(ratio, median, `95% CI`) %>%
   arrange(ratio)
 
+
+# ACC_wce <- matrix(NA_real_, nrow = W, ncol = B,
+#                     dimnames = list(w = 1:W, b = 1:B))
+# 
+# for (bb in seq_len(B)){
+#   print(bb)
+# for (ww in seq_len(W)){
+# 
+# w <- wce[[ww]]
+# 
+# model_weights_WCE <- c(
+#   negative = - w * log(p_negative),
+#   positive = - log(1 - p_negative)  # log(1 - p_major)
+# )
+# 
+# weighted_rf_WCE <- train(Class ~ .,
+#                      data = data_train,
+#                      method = "ranger",
+#                      trControl = train_control,
+#                      metric = "ROC",
+#                      class.weights = model_weights_WCE,
+#                      num.trees = 100, ## Default is 500
+#                      importance = 'permutation'
+#                     )
+# 
+# cm_weighted_rf_training_tbl <- evaluate_model(weighted_rf_WCE,
+#                data_valid,
+#                data_train)$cm$table
+# 
+# TP <- cm_weighted_rf_training_tbl[2, 2] # Predicted: Positive, Actual: Positive
+# FP <- cm_weighted_rf_training_tbl[2, 1] # Predicted: Positive, Actual: Negative
+# TN <- cm_weighted_rf_training_tbl[1, 1] # Predicted: Negative, Actual: Negative
+# FN <- cm_weighted_rf_training_tbl[1, 2] # Predicted: Negative, Actual: Positive
+# 
+# tpr <- TP / (TP + FN)
+# fpr <- FP / (FP + TN)
+# 
+# ACC_wce[ww,bb] <- round(
+#   (sum(predict(weighted_rf_WCE,
+#         newdata = data_test, type = "prob")[, "positive"]) - fpr) / (tpr - fpr)
+#   )
+# 
+# }}
+
+# saveRDS(ACC_wce, 'ACC_wce.rds')
+
 # Pretty table with kableExtra
+# sum_ACC %>%
+#   kbl(
+#     digits = 3,
+#     align = "c",
+#     col.names = c("Weight ratio r", "Median ACC", "95% CI (bootstrap)")
+#   ) %>%
+#   kable_paper(full_width = FALSE) %>%
+#   add_header_above(c(" " = 1, "summary across bootstraps - Adjusting R" = 2))
+# 
+
+ACC_wce <- read_rds('ACC_wce.rds')
+
+rownames(ACC_wce) <- as.character(wce)
+colnames(ACC_wce) <- paste0("boot_", boots)
+
+# Long table of all results
+df_ACC <- data.frame(
+  weights = rep(wce, times = ncol(ACC_wce)),
+  boot  = rep(boots, each = nrow(ACC_wce)),
+  ACC_wce   = as.vector(ACC_wce)
+)
+
+# Summaries per ratio (percentile bootstrap CI)
+sum_ACC_wce <- df_ACC %>%
+  group_by(weights) %>%
+  summarize(
+    median = median(ACC_wce, na.rm = TRUE),
+    lwr    = quantile(ACC_wce, 0.025, na.rm = TRUE),
+    upr    = quantile(ACC_wce, 0.975, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(`95% CI` = sprintf("[%.0f, %.0f]", lwr, upr)) %>%
+  select(weights, median, `95% CI`) %>%
+  arrange(weights)
+
+
 sum_ACC %>%
   kbl(
     digits = 3,
@@ -2091,7 +2173,17 @@ sum_ACC %>%
     col.names = c("Weight ratio r", "Median ACC", "95% CI (bootstrap)")
   ) %>%
   kable_paper(full_width = FALSE) %>%
-  add_header_above(c(" " = 1, "ACC summary across bootstraps" = 2))
+  add_header_above(c(" " = 1, "ACC summary across bootstraps - Adjusting R" = 2))
+
+
+sum_ACC_wce %>%
+  kbl(
+    digits = 3,
+    align = "c",
+    col.names = c("Weight ratio w", "Median ACC", "95% CI (bootstrap)")
+  ) %>%
+  kable_paper(full_width = FALSE) %>%
+  add_header_above(c(" " = 1, "ACC summary across bootstraps - WCE Adjusting W" = 2))
 
 
 

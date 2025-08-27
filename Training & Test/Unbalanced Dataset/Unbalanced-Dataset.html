@@ -11,7 +11,7 @@
 
 <meta name="author" content="Hamed Helisaz" />
 
-<meta name="date" content="2025-08-25" />
+<meta name="date" content="2025-08-26" />
 
 <title>Comparing Methods for Handling Imbalanced Datasets</title>
 
@@ -1706,7 +1706,7 @@ border-radius: 0px;
 <h1 class="title toc-ignore">Comparing Methods for Handling Imbalanced
 Datasets</h1>
 <h4 class="author">Hamed Helisaz</h4>
-<h4 class="date">2025-08-25</h4>
+<h4 class="date">2025-08-26</h4>
 
 </div>
 
@@ -2253,7 +2253,7 @@ time, the threshold is 0.87</p>
 </div>
 <div id="glm-smote-enn" class="section level5">
 <h5>3.1.4 GLM + SMOTE-ENN</h5>
-<pre><code>## Number of instances removed from majority class with ENN: 1544    Time needed: 2.42</code></pre>
+<pre><code>## Number of instances removed from majority class with ENN: 1544    Time needed: 2.56</code></pre>
 <pre><code>## 
 ## negative positive 
 ##    21582    23126</code></pre>
@@ -2485,124 +2485,124 @@ maximize the <strong>F1 score</strong>, ensuring a balance between
 precision and recall.</p>
 <div id="baseline-nn" class="section level5">
 <h5>3.4.1 Baseline NN</h5>
-<pre><code>## Epoch 10, Loss: 1.5075
-## Epoch 20, Loss: 0.5066
-## Epoch 30, Loss: 0.2885
-## Epoch 40, Loss: 0.2357
-## Epoch 50, Loss: 0.2164
-## Epoch 60, Loss: 0.2143
-## Epoch 70, Loss: 0.2065
-## Epoch 80, Loss: 0.2037
-## Epoch 90, Loss: 0.1999
-## Epoch 100, Loss: 0.1951</code></pre>
+<pre><code>## Epoch 10, Loss: 1.9952
+## Epoch 20, Loss: 0.7197
+## Epoch 30, Loss: 0.3507
+## Epoch 40, Loss: 0.2364
+## Epoch 50, Loss: 0.2006
+## Epoch 60, Loss: 0.1889
+## Epoch 70, Loss: 0.1745
+## Epoch 80, Loss: 0.1746
+## Epoch 90, Loss: 0.1687
+## Epoch 100, Loss: 0.1570</code></pre>
 <p>ROC is used to find an optimal threshold for classification. This
 time, the threshold is 0</p>
 <pre><code>##           Reference
 ## Prediction negative positive
-##   negative      408       23
-##   positive     7851      105
+##   negative      294       12
+##   positive     7965      116
 ## 
-## Sensitivity: 0.82
-## Specificity: 0.049
-## Precision:    0.013
-## F1 Score:    0.026</code></pre>
+## Sensitivity: 0.906
+## Specificity: 0.036
+## Precision:    0.014
+## F1 Score:    0.028</code></pre>
 <hr />
 </div>
 <div id="nn-smote" class="section level5">
 <h5>3.3.2 NN + SMOTE</h5>
-<pre><code>## Epoch 10, Loss: 0.9841
-## Epoch 20, Loss: 0.8430
-## Epoch 30, Loss: 0.7752
-## Epoch 40, Loss: 0.7307
-## Epoch 50, Loss: 0.6987
-## Epoch 60, Loss: 0.6792
-## Epoch 70, Loss: 0.6658
-## Epoch 80, Loss: 0.6559
-## Epoch 90, Loss: 0.6460
-## Epoch 100, Loss: 0.6391</code></pre>
+<pre><code>## Epoch 10, Loss: 1.3516
+## Epoch 20, Loss: 0.9103
+## Epoch 30, Loss: 0.8009
+## Epoch 40, Loss: 0.7741
+## Epoch 50, Loss: 0.7319
+## Epoch 60, Loss: 0.7116
+## Epoch 70, Loss: 0.6911
+## Epoch 80, Loss: 0.6766
+## Epoch 90, Loss: 0.6644
+## Epoch 100, Loss: 0.6536</code></pre>
 <p>ROC is used to find an optimal threshold for classification. This
-time, the threshold is 0.67</p>
+time, the threshold is 0.76</p>
 <pre><code>##           Reference
 ## Prediction negative positive
-##   negative     7325       77
-##   positive      934       51
+##   negative     7715      107
+##   positive      544       21
 ## 
-## Sensitivity: 0.398
-## Specificity: 0.887
-## Precision:    0.052
-## F1 Score:    0.092</code></pre>
+## Sensitivity: 0.164
+## Specificity: 0.934
+## Precision:    0.037
+## F1 Score:    0.061</code></pre>
 </div>
 <div id="nn-smote-enn" class="section level5">
 <h5>3.3.2 NN + SMOTE-ENN</h5>
-<pre><code>## Epoch 10, Loss: 0.8843
-## Epoch 20, Loss: 0.7618
-## Epoch 30, Loss: 0.7041
-## Epoch 40, Loss: 0.6809
-## Epoch 50, Loss: 0.6698
-## Epoch 60, Loss: 0.6559
-## Epoch 70, Loss: 0.6413
-## Epoch 80, Loss: 0.6287
-## Epoch 90, Loss: 0.6128
-## Epoch 100, Loss: 0.6023</code></pre>
+<pre><code>## Epoch 10, Loss: 1.7429
+## Epoch 20, Loss: 1.5729
+## Epoch 30, Loss: 1.3585
+## Epoch 40, Loss: 1.2042
+## Epoch 50, Loss: 1.0746
+## Epoch 60, Loss: 0.9651
+## Epoch 70, Loss: 0.8808
+## Epoch 80, Loss: 0.8067
+## Epoch 90, Loss: 0.7584
+## Epoch 100, Loss: 0.7099</code></pre>
 <p>ROC is used to find an optimal threshold for classification. This
-time, the threshold is 0.68</p>
+time, the threshold is 0.85</p>
 <pre><code>##           Reference
 ## Prediction negative positive
-##   negative     7486       90
-##   positive      773       38
+##   negative     8086      118
+##   positive      173       10
 ## 
-## Sensitivity: 0.297
-## Specificity: 0.906
-## Precision:    0.047
-## F1 Score:    0.081</code></pre>
+## Sensitivity: 0.078
+## Specificity: 0.979
+## Precision:    0.055
+## F1 Score:    0.064</code></pre>
 </div>
 <div id="nn-adasyn" class="section level5">
 <h5>3.3.4 NN + ADASYN</h5>
-<pre><code>## Epoch 10, Loss: 1.3606
-## Epoch 20, Loss: 1.3574
-## Epoch 30, Loss: 1.3558
-## Epoch 40, Loss: 1.3669
-## Epoch 50, Loss: 1.3716
-## Epoch 60, Loss: 1.3589
-## Epoch 70, Loss: 1.3589
-## Epoch 80, Loss: 1.3597
-## Epoch 90, Loss: 1.3641
-## Epoch 100, Loss: 1.3559</code></pre>
+<pre><code>## Epoch 10, Loss: 1.3943
+## Epoch 20, Loss: 1.3908
+## Epoch 30, Loss: 1.3950
+## Epoch 40, Loss: 1.3919
+## Epoch 50, Loss: 1.3972
+## Epoch 60, Loss: 1.3957
+## Epoch 70, Loss: 1.3904
+## Epoch 80, Loss: 1.3922
+## Epoch 90, Loss: 1.3919
+## Epoch 100, Loss: 1.3912</code></pre>
 <p>Again, ROC is used to find an optimal threshold for classification.
-This time, the threshold is 0.03</p>
+This time, the threshold is 1</p>
 <pre><code>##           Reference
 ## Prediction negative positive
-##   negative      540       24
-##   positive     7719      104
+##   negative     7767      114
+##   positive      492       14
 ## 
-## Sensitivity: 0.812
-## Specificity: 0.065
-## Precision:    0.013
-## F1 Score:    0.026</code></pre>
+## Sensitivity: 0.109
+## Specificity: 0.94
+## Precision:    0.028
+## F1 Score:    0.044</code></pre>
 </div>
 <div id="weighted-nn" class="section level5">
 <h5>3.3.5 Weighted NN</h5>
-<pre><code>## Epoch 10, Loss: 1.7783
-## Epoch 20, Loss: 1.8059
-## Epoch 30, Loss: 1.8981
-## Epoch 40, Loss: 1.8759
-## Epoch 50, Loss: 1.8890
-## Epoch 60, Loss: 1.9366
-## Epoch 70, Loss: 1.8130
-## Epoch 80, Loss: 1.9292
-## Epoch 90, Loss: 1.8664
-## Epoch 100, Loss: 1.7368</code></pre>
+<pre><code>## Epoch 10, Loss: 1.0678
+## Epoch 20, Loss: 1.0677
+## Epoch 30, Loss: 1.0699
+## Epoch 40, Loss: 1.0663
+## Epoch 50, Loss: 1.0651
+## Epoch 60, Loss: 1.0621
+## Epoch 70, Loss: 1.0646
+## Epoch 80, Loss: 1.0724
+## Epoch 90, Loss: 1.0711
+## Epoch 100, Loss: 1.0736</code></pre>
 <p>ROC is used to find an optimal threshold for classification. This
-time, the threshold is 0</p>
+time, the threshold is 0.98</p>
 <pre><code>##           Reference
 ## Prediction negative positive
-##   negative      338       12
-##   positive     7921      116
+##   negative     7707       91
+##   positive      552       37
 ## 
-## Sensitivity: 0.906
-## Specificity: 0.041
-## Precision:    0.014
-## F1 Score:    0.028</code></pre>
+## Sensitivity: 0.289
+## Specificity: 0.933
+## Precision:    0.063
+## F1 Score:    0.103</code></pre>
 </div>
 </div>
 </div>
@@ -2658,7 +2658,7 @@ F1_Score
 RF (Weighting)
 </td>
 <td style="text-align:left;">
-0.477
+<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.477</span>
 </td>
 <td style="text-align:left;">
 0.923
@@ -2746,7 +2746,7 @@ XGBoost (Baseline)
 0.266
 </td>
 <td style="text-align:left;">
-<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.949</span>
+0.949
 </td>
 <td style="text-align:left;">
 0.075
@@ -2760,7 +2760,7 @@ XGBoost (Baseline)
 XGBoost (SMOTE-ENN)
 </td>
 <td style="text-align:left;">
-0.508
+<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.508</span>
 </td>
 <td style="text-align:left;">
 0.883
@@ -2804,6 +2804,23 @@ XGBoost (SMOTE)
 </td>
 <td style="text-align:left;">
 0.107
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+NN (Weighting)
+</td>
+<td style="text-align:left;">
+0.289
+</td>
+<td style="text-align:left;">
+0.933
+</td>
+<td style="text-align:left;">
+0.063
+</td>
+<td style="text-align:left;">
+0.103
 </td>
 </tr>
 <tr>
@@ -2859,23 +2876,6 @@ RF (SMOTE)
 </tr>
 <tr>
 <td style="text-align:left;">
-NN (SMOTE)
-</td>
-<td style="text-align:left;">
-0.398
-</td>
-<td style="text-align:left;">
-0.887
-</td>
-<td style="text-align:left;">
-0.052
-</td>
-<td style="text-align:left;">
-0.092
-</td>
-</tr>
-<tr>
-<td style="text-align:left;">
 XGBoost (Weighting)
 </td>
 <td style="text-align:left;">
@@ -2896,33 +2896,33 @@ XGBoost (Weighting)
 NN (SMOTE-ENN)
 </td>
 <td style="text-align:left;">
-0.297
+0.078
 </td>
 <td style="text-align:left;">
-0.906
+<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.979</span>
 </td>
 <td style="text-align:left;">
-0.047
+0.055
 </td>
 <td style="text-align:left;">
-0.081
+0.064
 </td>
 </tr>
 <tr>
 <td style="text-align:left;">
-NN (Weighting)
+NN (SMOTE)
 </td>
 <td style="text-align:left;">
-<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.906</span>
+0.164
 </td>
 <td style="text-align:left;">
-0.041
+0.934
 </td>
 <td style="text-align:left;">
-0.014
+0.037
 </td>
 <td style="text-align:left;">
-0.028
+0.061
 </td>
 </tr>
 <tr>
@@ -2930,16 +2930,16 @@ NN (Weighting)
 NN (ADASYN)
 </td>
 <td style="text-align:left;">
-<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.812</span>
+0.109
 </td>
 <td style="text-align:left;">
-0.065
+0.94
 </td>
 <td style="text-align:left;">
-0.013
+0.028
 </td>
 <td style="text-align:left;">
-0.026
+0.044
 </td>
 </tr>
 <tr>
@@ -2947,16 +2947,16 @@ NN (ADASYN)
 NN (Baseline)
 </td>
 <td style="text-align:left;">
-<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.82</span>
+<span style=" font-weight: bold;    border-radius: 4px; padding-right: 4px; padding-left: 4px; background-color: rgba(144, 238, 144, 255) !important;">0.906</span>
 </td>
 <td style="text-align:left;">
-0.049
+0.036
 </td>
 <td style="text-align:left;">
-0.013
+0.014
 </td>
 <td style="text-align:left;">
-0.026
+0.028
 </td>
 </tr>
 </tbody>
@@ -3788,8 +3788,8 @@ Median PCC
 <div id="acc-weighted-rf" class="section level4">
 <h4>3.7.2 ACC (Weighted RF)</h4>
 <pre><code>##            used  (Mb) gc trigger   (Mb)   max used   (Mb)
-## Ncells  5853299 312.6    9316430  497.6    9316430  497.6
-## Vcells 44770348 341.6  229836394 1753.6 1172791359 8947.7</code></pre>
+## Ncells  5853854 312.7   10291402  549.7    8371708  447.1
+## Vcells 44771826 341.6  229836492 1753.6 1179367031 8997.9</code></pre>
 <table class=" lightable-paper" style="font-family: &quot;Arial Narrow&quot;, arial, helvetica, sans-serif; width: auto !important; margin-left: auto; margin-right: auto;">
 <thead>
 <tr>
@@ -3797,7 +3797,7 @@ Median PCC
 </th>
 <th style="padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
 <div style="border-bottom: 1px solid #00000020; padding-bottom: 5px; ">
-ACC summary across bootstraps
+ACC summary across bootstraps - Adjusting R
 </div>
 </th>
 </tr>
@@ -3867,6 +3867,98 @@ Median ACC
 </td>
 <td style="text-align:center;">
 [139, 241]
+</td>
+</tr>
+</tbody>
+</table>
+<table class=" lightable-paper" style="font-family: &quot;Arial Narrow&quot;, arial, helvetica, sans-serif; width: auto !important; margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="empty-cells: hide;" colspan="1">
+</th>
+<th style="padding-bottom:0; padding-left:3px;padding-right:3px;text-align: center; " colspan="2">
+<div style="border-bottom: 1px solid #00000020; padding-bottom: 5px; ">
+ACC summary across bootstraps - WCE Adjusting W
+</div>
+</th>
+</tr>
+<tr>
+<th style="text-align:center;">
+Weight ratio w
+</th>
+<th style="text-align:center;">
+Median ACC
+</th>
+<th style="text-align:center;">
+95% CI (bootstrap)
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:center;">
+0.5
+</td>
+<td style="text-align:center;">
+184.5
+</td>
+<td style="text-align:center;">
+[137, 238]
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+1.0
+</td>
+<td style="text-align:center;">
+192.0
+</td>
+<td style="text-align:center;">
+[138, 248]
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+1.5
+</td>
+<td style="text-align:center;">
+195.0
+</td>
+<td style="text-align:center;">
+[137, 241]
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+2.0
+</td>
+<td style="text-align:center;">
+191.5
+</td>
+<td style="text-align:center;">
+[139, 247]
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+3.0
+</td>
+<td style="text-align:center;">
+193.0
+</td>
+<td style="text-align:center;">
+[140, 233]
+</td>
+</tr>
+<tr>
+<td style="text-align:center;">
+4.0
+</td>
+<td style="text-align:center;">
+188.0
+</td>
+<td style="text-align:center;">
+[139, 244]
 </td>
 </tr>
 </tbody>
