@@ -3,10 +3,10 @@ name: Convert Rmd to Jupyter Notebook
 on:
   push:
     branches:
-      - DataAnalysis  # Strictly runs on your DataAnalysis branch
+      - DataAnalysis
     paths:
-      - 'training-test/unbalanced-dataset/**/*.Rmd' # Triggers only for files in this folder
-  workflow_dispatch: # Lets you trigger it manually from the "Actions" tab if needed
+      - 'training-test/unbalanced-dataset/**/*.Rmd'
+  workflow_dispatch:
 
 jobs:
   convert-rmd:
@@ -16,10 +16,10 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6 # Updated to v6 for Node 24 compatibility
+        uses: actions/checkout@v6
 
       - name: Set up Python
-        uses: actions/setup-python@v6 # Updated to v6 for Node 24 compatibility
+        uses: actions/setup-python@v6
         with:
           python-version: '3.10'
 
@@ -28,22 +28,25 @@ jobs:
 
       - name: Convert Rmd files to ipynb
         run: |
-          # Safe handling for spaces and the '&' symbol in folder names
-          find "training-test/unbalanced-dataset" -name "*.Rmd" -print0 | while IFS= read -r -d '' file; do
-            echo "Converting: $file"
-            jupytext --to notebook "$file"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Find every .Rmd file, convert it, and stage the resulting .ipynb directly
+          find training-test/unbalanced-dataset -name "*.Rmd" -print0 | while IFS= read -r -d '' rmd_file; do
+            echo "Converting: $rmd_file"
+            jupytext --to notebook "$rmd_file"
+            
+            # Derive the .ipynb filename and stage it safely
+            ipynb_file="${rmd_file%.Rmd}.ipynb"
+            if [ -f "$ipynb_file" ]; then
+              git add "$ipynb_file"
+            fi
           done
 
       - name: Commit and Push Jupyter Notebooks
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Stage the converted notebooks safely
-          git add "training-test/unbalanced-dataset/**/*.ipynb" || true
-          
           if git diff --staged --quiet; then
-            echo "No changes to commit."
+            echo "No new notebook changes detected."
           else
             git commit -m "Auto-converted Rmd to Jupyter Notebook [skip ci]"
             git push origin DataAnalysis
