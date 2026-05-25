@@ -1,0 +1,50 @@
+name: Convert Rmd to Jupyter Notebook
+
+on:
+  push:
+    branches:
+      - DataAnalysis  # Strictly runs on your DataAnalysis branch
+    paths:
+      - 'Training & Test/Unbalanced Dataset/**/*.Rmd' # Triggers only for files in this folder
+  workflow_dispatch: # Lets you trigger it manually from the "Actions" tab if needed
+
+jobs:
+  convert-rmd:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Jupytext
+        run: pip install jupytext
+
+      - name: Convert Rmd files to ipynb
+        run: |
+          # Safe handling for spaces and the '&' symbol in folder names
+          find "Training & Test/Unbalanced Dataset" -name "*.Rmd" -print0 | while IFS= read -r -d '' file; do
+            echo "Converting: $file"
+            jupytext --to notebook "$file"
+          done
+
+      - name: Commit and Push Jupyter Notebooks
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Stage the converted notebooks safely
+          git add "Training & Test/Unbalanced Dataset/**/*.ipynb" || true
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-converted Rmd to Jupyter Notebook [skip ci]"
+            git push origin DataAnalysis
+          fi
