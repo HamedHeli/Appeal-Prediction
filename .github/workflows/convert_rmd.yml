@@ -5,7 +5,7 @@ on:
     branches:
       - DataAnalysis  # Strictly runs on your DataAnalysis branch
     paths:
-      - 'Training & Test/Unbalanced Dataset/**/*.Rmd' # Triggers only for files in this folder
+      - 'training-test/unbalanced-dataset/**/*.Rmd' # Triggers only for files in this folder
   workflow_dispatch: # Lets you trigger it manually from the "Actions" tab if needed
 
 jobs:
@@ -29,7 +29,7 @@ jobs:
       - name: Convert Rmd files to ipynb
         run: |
           # Safe handling for spaces and the '&' symbol in folder names
-          find "Training & Test/Unbalanced Dataset" -name "*.Rmd" -print0 | while IFS= read -r -d '' file; do
+          find "training-test/unbalanced-dataset" -name "*.Rmd" -print0 | while IFS= read -r -d '' file; do
             echo "Converting: $file"
             jupytext --to notebook "$file"
           done
@@ -40,7 +40,7 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           
           # Stage the converted notebooks safely
-          git add "Training & Test/Unbalanced Dataset/**/*.ipynb" || true
+          git add "training-test/unbalanced-dataset/**/*.ipynb" || true
           
           if git diff --staged --quiet; then
             echo "No changes to commit."
