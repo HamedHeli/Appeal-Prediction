@@ -41,4 +41,4 @@ transparency despite the model’s complexity.
 * **`/training-test/`**: This directory contains materials related to the training and testing phases of our models or analyses.
     * **`/training-test/unbalanced-dataset/`**: This sub-directory focuses specifically on datasets and methodologies concerning imbalanced data.
         * **`unbalanced-dataset.html`**: An HTML report detailing the experimental setup and results for the unbalanced dataset scenario.
-          * You can view this report directly in your browser: [View the Unbalanced Dataset Report](https://github.com/HamedHeli/Appeal-Prediction/blob/DataAnalysis/training-test/unbalanced-dataset/Unbalanced-Dataset.html)
+          * You can view this report directly in your browser: [View the Unbalanced Dataset Report](https://hamedheli.github.io/Appeal-Prediction/training-test/unbalanced-dataset/Unbalanced-Dataset.html)
