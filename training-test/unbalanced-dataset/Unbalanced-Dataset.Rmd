@@ -1,7 +1,7 @@
 ---
 title: "Comparing Methods for Handling Imbalanced Datasets"
 author: "Hamed Helisaz"
-date: "`r Sys.Date()`"
+# date: "`r Sys.Date()`"
 output:
   html_document:
     fig_caption: yes
@@ -57,7 +57,7 @@ This dataset is used for predicting the likelihood of a **cerebral stroke** base
 
 ```{r 1.1 Load Data, echo = FALSE}
 
-data_raw <- read.csv("data/data.csv")
+data_raw <- read.csv("data/dataset.csv")
 
 
 factor_cols <- c("gender", "hypertension","heart_disease","ever_married",
@@ -268,7 +268,7 @@ for (col_name in numeric_predictors) {
 }
 
 combined_plot <- wrap_plots(plot_list, ncol = 2) +
-                 plot_layout(guides = 'collect') &
+                 plot_layout(guides = 'collect') +
                  theme(legend.position = 'right')
 
 print(combined_plot)

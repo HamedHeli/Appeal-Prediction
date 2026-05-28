@@ -3,7 +3,5 @@
 .RData
 .Ruserdata
 *.pdf
-*.csv
 *.xlsx
 *.docs
-Unbalanced-Dataset_files
